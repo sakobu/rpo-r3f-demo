@@ -42,7 +42,6 @@ const ORBITAL_PARAMS = (() => {
 })();
 
 const TRAJECTORY_POINTS_PER_ORBIT = 120;
-const FLOAT_TOLERANCE = 1e-9; // Tolerance for floating-point comparisons
 
 // Coordinate conversion: RIC to Three.js
 // NOTE: This transformation reorders axes but preserves the right-handed orientation.
@@ -81,16 +80,11 @@ const advanceSimulationTime = (
   return { time: nextTime, completed: false };
 };
 
-const CUSTOM_PRESET = "Custom" as const;
-const PRESET_NAMES = [
-  "R-bar Approach",
-  "V-bar Approach",
-  "NMC (2:1 Ellipse)",
-  "FMC (Flyaround)",
-] as const;
-
-type PresetName = (typeof PRESET_NAMES)[number];
-type PresetOption = typeof CUSTOM_PRESET | PresetName;
+type PresetName =
+  | "R-bar Approach"
+  | "V-bar Approach"
+  | "NMC (2:1 Ellipse)"
+  | "FMC (Flyaround)";
 
 type RelativeStateParams = {
   radialOffset: number;
@@ -106,9 +100,7 @@ type RelativeMotionParams = RelativeStateParams & {
   timeAcceleration: number;
 };
 
-type RelativeMotionControls = RelativeMotionParams & {
-  preset: PresetOption;
-};
+type RelativeMotionControls = RelativeMotionParams;
 
 // Preset configurations
 const R0 = 1000;
@@ -159,17 +151,6 @@ const PRESET_CONFIGS: Record<PresetName, RelativeMotionParams> = {
 };
 
 const DEFAULT_PRESET: PresetName = "NMC (2:1 Ellipse)";
-const PRESET_OPTIONS: PresetOption[] = [CUSTOM_PRESET, ...PRESET_NAMES];
-const CONTROL_FIELDS = [
-  "radialOffset",
-  "inTrackOffset",
-  "crossTrackOffset",
-  "radialVelocity",
-  "inTrackVelocity",
-  "crossTrackVelocity",
-  "numOrbits",
-  "timeAcceleration",
-] as const satisfies readonly (keyof RelativeMotionParams)[];
 
 const createRelativeState = ({
   radialOffset,
@@ -186,32 +167,17 @@ const createRelativeState = ({
 const getPresetConfig = (preset: PresetName) => PRESET_CONFIGS[preset];
 const defaultPresetConfig = getPresetConfig(DEFAULT_PRESET);
 
-const matchesPreset = (values: RelativeMotionParams, preset: PresetName) => {
-  const presetConfig = getPresetConfig(preset);
-  return CONTROL_FIELDS.every((field) => {
-    const value = values[field];
-    const presetValue = presetConfig[field];
-
-    // Use approximate comparison for floating-point numbers
-    if (typeof value === "number" && typeof presetValue === "number") {
-      return Math.abs(value - presetValue) < FLOAT_TOLERANCE;
-    }
-
-    return value === presetValue;
-  });
-};
-
 const useRelativeMotionControls = (
   onPlayPause: () => void,
   onReset: () => void
 ): RelativeMotionControls => {
-  const isApplyingPreset = useRef(false);
+  const setControlsRef = useRef<((values: Partial<RelativeMotionParams>) => void) | null>(null);
+
   const [controls, setControls] = useControls(() => ({
-    preset: {
-      label: "Preset",
-      value: DEFAULT_PRESET,
-      options: PRESET_OPTIONS,
-    },
+    "R-bar Approach": button(() => setControlsRef.current?.(PRESET_CONFIGS["R-bar Approach"])),
+    "V-bar Approach": button(() => setControlsRef.current?.(PRESET_CONFIGS["V-bar Approach"])),
+    "NMC (2:1 Ellipse)": button(() => setControlsRef.current?.(PRESET_CONFIGS["NMC (2:1 Ellipse)"])),
+    "FMC (Flyaround)": button(() => setControlsRef.current?.(PRESET_CONFIGS["FMC (Flyaround)"])),
     radialOffset: {
       label: "Radial Offset (m)",
       value: defaultPresetConfig.radialOffset,
@@ -272,99 +238,11 @@ const useRelativeMotionControls = (
     Reset: button(onReset),
   }));
 
-  const controlValues = controls as RelativeMotionControls;
-
-  const {
-    preset,
-    radialOffset,
-    inTrackOffset,
-    crossTrackOffset,
-    radialVelocity,
-    inTrackVelocity,
-    crossTrackVelocity,
-    numOrbits,
-    timeAcceleration,
-  } = controlValues;
-
   useEffect(() => {
-    if (preset === CUSTOM_PRESET) {
-      return;
-    }
-    isApplyingPreset.current = true;
-    const presetConfig = getPresetConfig(preset);
-    setControls({
-      radialOffset: presetConfig.radialOffset,
-      inTrackOffset: presetConfig.inTrackOffset,
-      crossTrackOffset: presetConfig.crossTrackOffset,
-      radialVelocity: presetConfig.radialVelocity,
-      inTrackVelocity: presetConfig.inTrackVelocity,
-      crossTrackVelocity: presetConfig.crossTrackVelocity,
-      numOrbits: presetConfig.numOrbits,
-      timeAcceleration: presetConfig.timeAcceleration,
-    });
-    // Flag will be reset by the next effect once values match
-  }, [preset, setControls]);
+    setControlsRef.current = setControls;
+  }, [setControls]);
 
-  useEffect(() => {
-    if (preset !== CUSTOM_PRESET && isApplyingPreset.current) {
-      const currentValues: RelativeMotionParams = {
-        radialOffset,
-        inTrackOffset,
-        crossTrackOffset,
-        radialVelocity,
-        inTrackVelocity,
-        crossTrackVelocity,
-        numOrbits,
-        timeAcceleration,
-      };
-      if (matchesPreset(currentValues, preset)) {
-        isApplyingPreset.current = false;
-      }
-    }
-  }, [
-    preset,
-    radialOffset,
-    inTrackOffset,
-    crossTrackOffset,
-    radialVelocity,
-    inTrackVelocity,
-    crossTrackVelocity,
-    numOrbits,
-    timeAcceleration,
-  ]);
-
-  useEffect(() => {
-    if (preset === CUSTOM_PRESET || isApplyingPreset.current) {
-      return;
-    }
-    const currentValues: RelativeMotionParams = {
-      radialOffset,
-      inTrackOffset,
-      crossTrackOffset,
-      radialVelocity,
-      inTrackVelocity,
-      crossTrackVelocity,
-      numOrbits,
-      timeAcceleration,
-    };
-    if (matchesPreset(currentValues, preset)) {
-      return;
-    }
-    setControls({ preset: CUSTOM_PRESET });
-  }, [
-    preset,
-    radialOffset,
-    inTrackOffset,
-    crossTrackOffset,
-    radialVelocity,
-    inTrackVelocity,
-    crossTrackVelocity,
-    numOrbits,
-    timeAcceleration,
-    setControls,
-  ]);
-
-  return controlValues;
+  return controls as RelativeMotionControls;
 };
 
 function ChiefSpacecraft() {
