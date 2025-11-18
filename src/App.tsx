@@ -14,8 +14,9 @@ import * as THREE from "three";
 import "./App.css";
 
 // RIC frame: R (radial), I (in-track), C (cross-track)
-// Library uses [R, I, C] order for position and velocity
-// In Three.js: X = I (in-track), Y = C (cross-track), Z = R (radial)
+// rpo-suite uses [R, I, C] order for position and velocity vectors (right-handed)
+// Three.js display mapping: X = I (in-track), Y = C (cross-track), Z = R (radial)
+// This creates an intuitive view where the X-Z plane shows the orbital plane
 
 const SCALE = 0.01; // Scale down from meters to scene units
 
@@ -23,7 +24,7 @@ const SCALE = 0.01; // Scale down from meters to scene units
 const orbitalElements: OrbitalElements = {
   eccentricity: 0.001,
   gravitationalParameter: 3.986004418e14, // Earth's μ (m³/s²)
-  angularMomentum: 5.409e10, // for ~400km orbit
+  angularMomentum: 5.194e10, // for ~400km orbit (h = √(μ·a), a = 6771km)
 };
 
 // Calculate orbital parameters
@@ -37,25 +38,48 @@ const ORBITAL_PARAMS = (() => {
   const n = Math.sqrt(mu / (a * a * a)); // mean motion (correct formula)
   const period = orbitalPeriod(orbitalElements);
 
-  console.log("Orbital period:", period, "seconds");
-  console.log("Mean motion n:", n, "rad/s");
-  console.log("Semi-major axis a:", a, "meters");
-
   return { elements: orbitalElements, period, meanMotion: n } as const;
 })();
 
 const TRAJECTORY_POINTS_PER_ORBIT = 120;
+const FLOAT_TOLERANCE = 1e-9; // Tolerance for floating-point comparisons
 
 // Coordinate conversion: RIC to Three.js
+// NOTE: This transformation reorders axes but preserves the right-handed orientation.
+// While RIC is defined with R×I=C, displaying the data as [I, C, R] produces an intuitive
+// orbital view where the X-Z plane represents the orbital plane without altering physics.
+// Since rpo-suite performs all calculations in RIC, this display-only mapping does not
+// affect physical correctness.
+// Mapping: RIC [R, I, C] → Three.js [I, C, R] → [X, Y, Z]
 const toThreeJS = (ricPosition: Vector3): Vector3 =>
   [
-    ricPosition[1] * SCALE, // I -> X
-    ricPosition[2] * SCALE, // C -> Y
-    ricPosition[0] * SCALE, // R -> Z
+    ricPosition[1] * SCALE, // I (In-track) -> X
+    ricPosition[2] * SCALE, // C (Cross-track) -> Y
+    ricPosition[0] * SCALE, // R (Radial) -> Z
   ] as const;
 
-const computeNaturalMotionVelocity = (inTrack: number): number =>
-  0.5 * ORBITAL_PARAMS.meanMotion * inTrack;
+const naturalMotionInTrackVelocity = (radialOffset: number): number =>
+  -2 * ORBITAL_PARAMS.meanMotion * radialOffset;
+
+type TimeAdvanceResult = {
+  readonly time: number;
+  readonly completed: boolean;
+};
+
+const advanceSimulationTime = (
+  current: number,
+  deltaSeconds: number,
+  acceleration: number,
+  duration: number
+): TimeAdvanceResult => {
+  const nextTime = current + deltaSeconds * acceleration;
+
+  if (nextTime >= duration) {
+    return { time: duration, completed: true };
+  }
+
+  return { time: nextTime, completed: false };
+};
 
 const CUSTOM_PRESET = "Custom" as const;
 const PRESET_NAMES = [
@@ -116,8 +140,8 @@ const PRESET_CONFIGS: Record<PresetName, RelativeMotionParams> = {
     radialOffset: R0,
     inTrackOffset: I0,
     crossTrackOffset: C0,
-    radialVelocity: computeNaturalMotionVelocity(I0),
-    inTrackVelocity: 0,
+    radialVelocity: 0,
+    inTrackVelocity: naturalMotionInTrackVelocity(R0),
     crossTrackVelocity: 0,
     numOrbits: 10,
     timeAcceleration: 50,
@@ -164,13 +188,24 @@ const defaultPresetConfig = getPresetConfig(DEFAULT_PRESET);
 
 const matchesPreset = (values: RelativeMotionParams, preset: PresetName) => {
   const presetConfig = getPresetConfig(preset);
-  return CONTROL_FIELDS.every((field) => values[field] === presetConfig[field]);
+  return CONTROL_FIELDS.every((field) => {
+    const value = values[field];
+    const presetValue = presetConfig[field];
+
+    // Use approximate comparison for floating-point numbers
+    if (typeof value === "number" && typeof presetValue === "number") {
+      return Math.abs(value - presetValue) < FLOAT_TOLERANCE;
+    }
+
+    return value === presetValue;
+  });
 };
 
 const useRelativeMotionControls = (
   onPlayPause: () => void,
   onReset: () => void
 ): RelativeMotionControls => {
+  const isApplyingPreset = useRef(false);
   const [controls, setControls] = useControls(() => ({
     preset: {
       label: "Preset",
@@ -255,6 +290,7 @@ const useRelativeMotionControls = (
     if (preset === CUSTOM_PRESET) {
       return;
     }
+    isApplyingPreset.current = true;
     const presetConfig = getPresetConfig(preset);
     setControls({
       radialOffset: presetConfig.radialOffset,
@@ -266,10 +302,14 @@ const useRelativeMotionControls = (
       numOrbits: presetConfig.numOrbits,
       timeAcceleration: presetConfig.timeAcceleration,
     });
+    // Reset flag after state updates
+    setTimeout(() => {
+      isApplyingPreset.current = false;
+    }, 0);
   }, [preset, setControls]);
 
   useEffect(() => {
-    if (preset === CUSTOM_PRESET) {
+    if (preset === CUSTOM_PRESET || isApplyingPreset.current) {
       return;
     }
     const currentValues: RelativeMotionParams = {
@@ -366,6 +406,7 @@ function VelocityVector({ position, velocity }: VelocityVectorProps) {
   );
 
   const direction = useMemo(() => {
+    // Map velocity from RIC [R, I, C] to Three.js [I, C, R] → [X, Y, Z]
     const vel = new THREE.Vector3(velocity[1], velocity[2], velocity[0]);
     return vel.normalize();
   }, [velocity]);
@@ -374,7 +415,9 @@ function VelocityVector({ position, velocity }: VelocityVectorProps) {
     const speed = Math.sqrt(
       velocity[0] ** 2 + velocity[1] ** 2 + velocity[2] ** 2
     );
-    return speed * SCALE * 5; // Scale up for visibility
+    // Velocity visualization scale (independent of position SCALE)
+    // Speed is in m/s, scale to scene units for visibility
+    return speed * 0.05;
   }, [velocity]);
 
   return (
@@ -429,6 +472,7 @@ function Stats({ distance, speed, elapsedTime, isPlaying }: StatsProps) {
 
 type TimeControllerProps = {
   readonly acceleration: number;
+  readonly duration: number;
   readonly onPlayPauseRef: (fn: () => void) => void;
   readonly onResetRef: (fn: () => void) => void;
   readonly onPlayingChange: (isPlaying: boolean) => void;
@@ -437,6 +481,7 @@ type TimeControllerProps = {
 
 function TimeController({
   acceleration,
+  duration,
   onPlayPauseRef,
   onResetRef,
   onPlayingChange,
@@ -447,7 +492,20 @@ function TimeController({
 
   useFrame((_, delta) => {
     if (isPlaying) {
-      setElapsedTime((t) => t + delta * acceleration);
+      setElapsedTime((current) => {
+        const { time, completed } = advanceSimulationTime(
+          current,
+          delta,
+          acceleration,
+          duration
+        );
+
+        if (completed) {
+          setIsPlaying(false);
+        }
+
+        return time;
+      });
     }
   });
 
@@ -520,6 +578,8 @@ function DeputySpacecraft({
 }
 
 function RICAxes() {
+  // Display RIC coordinate frame axes (mapped to Three.js for visualization)
+  // Grid shows the I-R plane (orbital plane projection)
   return (
     <group>
       {/* R axis (Radial) - Blue - Z axis */}
@@ -634,6 +694,9 @@ function App() {
     ]
   );
 
+  const controllerKey = `${initialStateKey}-${numOrbits}`;
+  const simulationDuration = numOrbits * ORBITAL_PARAMS.period;
+
   const statsData = useMemo(() => {
     if (!currentState) {
       return { distance: 0, speed: 0 };
@@ -673,8 +736,9 @@ function App() {
         <Trajectory initialState={initialRelativeState} numOrbits={numOrbits} />
 
         <TimeController
-          key={initialStateKey}
+          key={controllerKey}
           acceleration={timeAcceleration}
+          duration={simulationDuration}
           onPlayPauseRef={(fn) => (playPauseRef.current = fn)}
           onResetRef={(fn) => (resetRef.current = fn)}
           onPlayingChange={handlePlayingChange}
@@ -697,7 +761,7 @@ function App() {
           isPlaying={isPlaying}
         />
       )}
-      <Leva collapsed />
+      <Leva />
     </div>
   );
 }
