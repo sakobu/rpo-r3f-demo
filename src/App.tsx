@@ -35,7 +35,7 @@ const ORBITAL_PARAMS = (() => {
     eccentricity: e,
   } = orbitalElements;
   const a = (h * h) / (mu * (1 - e * e)); // semi-major axis
-  const n = Math.sqrt(mu / (a * a * a)); // mean motion (correct formula)
+  const n = Math.sqrt(mu / (a * a * a)); // mean motion
   const period = orbitalPeriod(orbitalElements);
 
   return { elements: orbitalElements, period, meanMotion: n } as const;
@@ -302,11 +302,36 @@ const useRelativeMotionControls = (
       numOrbits: presetConfig.numOrbits,
       timeAcceleration: presetConfig.timeAcceleration,
     });
-    // Reset flag after state updates
-    setTimeout(() => {
-      isApplyingPreset.current = false;
-    }, 0);
+    // Flag will be reset by the next effect once values match
   }, [preset, setControls]);
+
+  useEffect(() => {
+    if (preset !== CUSTOM_PRESET && isApplyingPreset.current) {
+      const currentValues: RelativeMotionParams = {
+        radialOffset,
+        inTrackOffset,
+        crossTrackOffset,
+        radialVelocity,
+        inTrackVelocity,
+        crossTrackVelocity,
+        numOrbits,
+        timeAcceleration,
+      };
+      if (matchesPreset(currentValues, preset)) {
+        isApplyingPreset.current = false;
+      }
+    }
+  }, [
+    preset,
+    radialOffset,
+    inTrackOffset,
+    crossTrackOffset,
+    radialVelocity,
+    inTrackVelocity,
+    crossTrackVelocity,
+    numOrbits,
+    timeAcceleration,
+  ]);
 
   useEffect(() => {
     if (preset === CUSTOM_PRESET || isApplyingPreset.current) {
@@ -392,46 +417,6 @@ function Trajectory({ initialState, numOrbits }: TrajectoryProps) {
   }, [initialState, numOrbits]);
 
   return <Line points={points} color="#00ffff" lineWidth={1} />;
-}
-
-type VelocityVectorProps = {
-  readonly position: Vector3;
-  readonly velocity: Vector3;
-};
-
-function VelocityVector({ position, velocity }: VelocityVectorProps) {
-  const start = useMemo(
-    () => new THREE.Vector3(...toThreeJS(position)),
-    [position]
-  );
-
-  const direction = useMemo(() => {
-    // Map velocity from RIC [R, I, C] to Three.js [I, C, R] → [X, Y, Z]
-    const vel = new THREE.Vector3(velocity[1], velocity[2], velocity[0]);
-    return vel.normalize();
-  }, [velocity]);
-
-  const magnitude = useMemo(() => {
-    const speed = Math.sqrt(
-      velocity[0] ** 2 + velocity[1] ** 2 + velocity[2] ** 2
-    );
-    // Velocity visualization scale (independent of position SCALE)
-    // Speed is in m/s, scale to scene units for visibility
-    return speed * 0.05;
-  }, [velocity]);
-
-  return (
-    <arrowHelper
-      args={[
-        direction,
-        start,
-        magnitude,
-        0xffff00,
-        magnitude * 0.2,
-        magnitude * 0.1,
-      ]}
-    />
-  );
 }
 
 type StatsProps = {
@@ -572,7 +557,6 @@ function DeputySpacecraft({
       <Text position={[0, 1, 0]} fontSize={0.4} color="#ff6600">
         Deputy
       </Text>
-      <VelocityVector position={state.position} velocity={state.velocity} />
     </group>
   );
 }
@@ -604,7 +588,7 @@ function RICAxes() {
           0xff0000,
         ]}
       />
-      <Text position={[11, 0, 0]} fontSize={0.8} color="red">
+      <Text position={[13, 0, 0]} fontSize={0.8} color="red">
         I (In-track)
       </Text>
 
@@ -727,7 +711,7 @@ function App() {
 
   return (
     <div style={{ width: "100vw", height: "100vh" }}>
-      <Canvas camera={{ position: [20, 20, 20], fov: 50 }}>
+      <Canvas camera={{ position: [10, 15, 100], fov: 40 }}>
         <ambientLight intensity={0.5} />
         <directionalLight position={[10, 10, 10]} intensity={1} />
 
