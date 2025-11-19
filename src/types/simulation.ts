@@ -6,8 +6,7 @@ export type TimeAdvanceResult = {
 export type PresetName =
   | "R-bar Approach"
   | "V-bar Approach"
-  | "NMC (2:1 Ellipse)"
-  | "FMC (Flyaround)";
+  | "NMC (2:1 Ellipse)";
 
 export type RelativeStateParams = {
   radialOffset: number;

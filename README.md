@@ -6,7 +6,7 @@ Interactive 3D visualization of spacecraft relative motion using the rpo-suite l
 
 This demo showcases the [rpo-suite](https://www.npmjs.com/package/rpo-suite) TypeScript library, which provides analytical solutions for propagating relative state between two spacecraft in orbit using the Yamanaka-Ankersen and Clohessy-Wiltshire algorithms.
 
-The visualization renders a chief spacecraft at the origin and a deputy spacecraft whose relative motion is computed using exact analytical state transition matrices. Users can observe various proximity operations scenarios including natural motion orbits, approach trajectories, and flyarounds.
+The visualization renders a chief spacecraft at the origin and a deputy spacecraft whose relative motion is computed using exact analytical state transition matrices. Users can observe various proximity operations scenarios including natural motion orbits and approach trajectories.
 
 ## Features
 
@@ -15,7 +15,6 @@ The visualization renders a chief spacecraft at the origin and a deputy spacecra
   - R-bar Approach (radial approach)
   - V-bar Approach (velocity vector approach)
   - Natural Motion Circumnavigation (2:1 ellipse)
-  - Forced Motion Circumnavigation (flyaround)
 - Interactive parameter controls via Leva
 - Trajectory visualization showing complete orbital paths
 - Velocity vector display
@@ -69,7 +68,7 @@ The demo uses a low Earth orbit configuration:
 
 - Altitude: approximately 400 km
 - Eccentricity: 0.001 (nearly circular)
-- Gravitational parameter: 3.986004418e14 m³/s² (Earth)
+- Gravitational parameter: 3.986004418e14 m^3/s^2 (Earth)
 
 ## Technologies
 

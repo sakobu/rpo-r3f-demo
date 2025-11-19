@@ -24,9 +24,6 @@ export const useRelativeMotionControls = (
     "NMC (2:1 Ellipse)": button(() =>
       setControlsRef.current?.(PRESET_CONFIGS["NMC (2:1 Ellipse)"])
     ),
-    "FMC (Flyaround)": button(() =>
-      setControlsRef.current?.(PRESET_CONFIGS["FMC (Flyaround)"])
-    ),
     radialOffset: {
       label: "Radial Offset (m)",
       value: defaultPresetConfig.radialOffset,

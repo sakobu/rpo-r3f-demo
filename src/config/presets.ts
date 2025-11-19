@@ -9,10 +9,6 @@ const NMC_R0 = 1000;
 const NMC_I0 = -2000;
 const NMC_C0 = 0;
 
-const FMC_R0 = 200;
-const FMC_I0 = 0;
-const FMC_C0 = 400;
-
 export const PRESET_CONFIGS: Record<PresetName, RelativeMotionParams> = {
   "R-bar Approach": {
     radialOffset: 1500,
@@ -43,16 +39,6 @@ export const PRESET_CONFIGS: Record<PresetName, RelativeMotionParams> = {
     crossTrackVelocity: 0,
     numOrbits: 10,
     timeAcceleration: 50,
-  },
-  "FMC (Flyaround)": {
-    radialOffset: FMC_R0,
-    inTrackOffset: FMC_I0,
-    crossTrackOffset: FMC_C0,
-    radialVelocity: 0,
-    inTrackVelocity: naturalMotionInTrackVelocity(FMC_R0),
-    crossTrackVelocity: -0.04,
-    numOrbits: 6,
-    timeAcceleration: 35,
   },
 };
 
