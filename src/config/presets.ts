@@ -10,7 +10,7 @@ const NMC_I0 = -2000;
 const NMC_C0 = 0;
 
 const FMC_R0 = 200;
-const FMC_I0 = -600;
+const FMC_I0 = 0;
 const FMC_C0 = 400;
 
 export const PRESET_CONFIGS: Record<PresetName, RelativeMotionParams> = {
