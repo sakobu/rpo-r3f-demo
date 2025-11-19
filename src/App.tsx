@@ -11,7 +11,6 @@ import {
   type Vector3,
 } from "rpo-suite";
 import * as THREE from "three";
-import "./App.css";
 
 const SCALE = 0.01;
 
@@ -33,7 +32,12 @@ const ORBITAL_PARAMS = (() => {
   const n = Math.sqrt(mu / (a * a * a)); // mean motion
   const period = orbitalPeriod(orbitalElements);
 
-  return { elements: orbitalElements, period, meanMotion: n } as const;
+  return {
+    elements: orbitalElements,
+    period,
+    meanMotion: n,
+    semiMajorAxis: a,
+  } as const;
 })();
 
 const TRAJECTORY_POINTS_PER_ORBIT = 120;
@@ -64,7 +68,7 @@ const naturalMotionInTrackVelocity = (radialOffset: number): number => {
   const r_d = r_c + radialOffset; // Deputy radius
 
   // Required semi-major axis for deputy (equal to chief's for no drift)
-  const a = (h * h) / (mu * (1 - e * e));
+  const a = ORBITAL_PARAMS.semiMajorAxis;
 
   // Vis-viva equation: v^2 = mu * (2/r - 1/a)
   const v_d_mag = Math.sqrt(mu * (2 / r_d - 1 / a));
@@ -531,6 +535,51 @@ function RICAxes() {
   );
 }
 
+function SimulationInfo() {
+  const { elements, period, semiMajorAxis } = ORBITAL_PARAMS;
+  const { eccentricity, gravitationalParameter } = elements;
+
+  const earthRadius = 6371000; // Approx Earth radius in meters
+  const altitude = semiMajorAxis - earthRadius;
+
+  return (
+    <div
+      style={{
+        position: "absolute",
+        bottom: "10px",
+        left: "10px",
+        background: "rgba(0,0,0,0.8)",
+        color: "#cccccc",
+        padding: "15px",
+        fontFamily: "monospace",
+        fontSize: "12px",
+        borderRadius: "5px",
+        pointerEvents: "none",
+        userSelect: "none",
+        minWidth: "200px",
+      }}
+    >
+      <div
+        style={{ marginBottom: "8px", color: "#ffffff", fontWeight: "bold" }}
+      >
+        SIMULATION PARAMETERS
+      </div>
+      <div style={{ marginBottom: "4px", color: "#aaaaaa" }}>
+        -- Chief Orbit --
+      </div>
+      <div>Semi-major Axis: {(semiMajorAxis / 1000).toFixed(1)} km</div>
+      <div>Altitude: {(altitude / 1000).toFixed(1)} km</div>
+      <div>Eccentricity: {eccentricity}</div>
+      <div>Period: {(period / 60).toFixed(1)} min</div>
+
+      <div style={{ marginTop: "8px", marginBottom: "4px", color: "#aaaaaa" }}>
+        -- Constants --
+      </div>
+      <div>Mu: {gravitationalParameter.toExponential(3)} m^3/s^2</div>
+    </div>
+  );
+}
+
 function App() {
   const [isPlaying, setIsPlaying] = useState(true);
   const [currentState, setCurrentState] = useState<RelativeState | null>(null);
@@ -662,6 +711,7 @@ function App() {
           isPlaying={isPlaying}
         />
       )}
+      <SimulationInfo />
       <Leva
         collapsed
         theme={{
@@ -672,7 +722,7 @@ function App() {
             rowHeight: "32px",
           },
           fontSizes: {
-            root: "14px",
+            root: "12px",
           },
         }}
       />
