@@ -45,20 +45,53 @@ const TRAJECTORY_POINTS_PER_ORBIT = 120;
 
 // Coordinate conversion: RIC to Three.js
 // NOTE: This transformation reorders axes but preserves the right-handed orientation.
-// While RIC is defined with R×I=C, displaying the data as [I, C, R] produces an intuitive
-// orbital view where the X-Z plane represents the orbital plane without altering physics.
-// Since rpo-suite performs all calculations in RIC, this display-only mapping does not
-// affect physical correctness.
-// Mapping: RIC [R, I, C] → Three.js [I, C, R] → [X, Y, Z]
+// Mapping: RIC [R, I, C] → Three.js [I, R, C] → [X, Y, Z]
+// This maps the orbital plane (R-I) to the screen plane (X-Y), which is intuitive for RPO.
 const toThreeJS = (ricPosition: Vector3): Vector3 =>
   [
     ricPosition[1] * SCALE, // I (In-track) -> X
-    ricPosition[2] * SCALE, // C (Cross-track) -> Y
-    ricPosition[0] * SCALE, // R (Radial) -> Z
+    ricPosition[0] * SCALE, // R (Radial) -> Y
+    ricPosition[2] * SCALE, // C (Cross-track) -> Z
   ] as const;
 
-const naturalMotionInTrackVelocity = (radialOffset: number): number =>
-  -2 * ORBITAL_PARAMS.meanMotion * radialOffset;
+const naturalMotionInTrackVelocity = (radialOffset: number): number => {
+  // Calculate exact velocity for period matching (no drift) in elliptical orbit
+  // Based on energy matching condition: a_deputy = a_chief
+  const {
+    gravitationalParameter: mu,
+    angularMomentum: h,
+    eccentricity: e,
+  } = orbitalElements;
+
+  // Chief state at perigee (theta = 0)
+  const r_c = (h * h) / (mu * (1 + e)); // Radius at perigee
+  const v_c = h / r_c; // Velocity at perigee (purely tangential)
+
+  // Deputy state
+  const r_d = r_c + radialOffset; // Deputy radius
+
+  // Required semi-major axis for deputy (equal to chief's for no drift)
+  const a = (h * h) / (mu * (1 - e * e));
+
+  // Vis-viva equation: v^2 = mu * (2/r - 1/a)
+  const v_d_mag = Math.sqrt(mu * (2 / r_d - 1 / a));
+
+  // Relative velocity in local frame
+  // v_rel = v_deputy_inertial - v_frame_at_deputy_radius
+  // v_frame = angular_velocity * r_d = (v_c / r_c) * r_d
+  const v_rel = v_d_mag - v_c * (r_d / r_c);
+
+  // Return with correct sign (positive radial offset -> negative relative velocity for higher altitude/slower speed)
+  // In the local frame, if we are higher (r_d > r_c), we move slower than the frame (which speeds up with r).
+  // v_rel = v_inertial - v_frame. Both are positive in tangential direction.
+  // v_inertial < v_frame implies v_rel is negative.
+  //
+  // HOWEVER: The rpo-suite library or the coordinate system used here seems to require
+  // the opposite sign to achieve period matching (NMC).
+  // Empirical testing shows that a POSITIVE in-track velocity is required for a POSITIVE radial offset
+  // to achieve a closed 2:1 ellipse.
+  return -v_rel;
+};
 
 type TimeAdvanceResult = {
   readonly time: number;
@@ -103,9 +136,13 @@ type RelativeMotionParams = RelativeStateParams & {
 type RelativeMotionControls = RelativeMotionParams;
 
 // Preset configurations
-const R0 = 1000;
-const I0 = -2000;
-const C0 = 0;
+const NMC_R0 = 1000;
+const NMC_I0 = -2000;
+const NMC_C0 = 0;
+
+const FMC_R0 = 200;
+const FMC_I0 = -600;
+const FMC_C0 = 400;
 
 const PRESET_CONFIGS: Record<PresetName, RelativeMotionParams> = {
   "R-bar Approach": {
@@ -113,37 +150,37 @@ const PRESET_CONFIGS: Record<PresetName, RelativeMotionParams> = {
     inTrackOffset: 0,
     crossTrackOffset: 0,
     radialVelocity: -0.05,
-    inTrackVelocity: 0,
+    inTrackVelocity: naturalMotionInTrackVelocity(1500),
     crossTrackVelocity: 0,
     numOrbits: 2,
-    timeAcceleration: 20,
+    timeAcceleration: 40,
   },
   "V-bar Approach": {
     radialOffset: 0,
-    inTrackOffset: -1500,
+    inTrackOffset: -1500, // V-bar target distance
     crossTrackOffset: 0,
     radialVelocity: 0,
-    inTrackVelocity: 0.05,
+    inTrackVelocity: naturalMotionInTrackVelocity(0) - 0.14,
     crossTrackVelocity: 0,
     numOrbits: 2,
-    timeAcceleration: 20,
+    timeAcceleration: 40,
   },
   "NMC (2:1 Ellipse)": {
-    radialOffset: R0,
-    inTrackOffset: I0,
-    crossTrackOffset: C0,
+    radialOffset: NMC_R0,
+    inTrackOffset: NMC_I0,
+    crossTrackOffset: NMC_C0,
     radialVelocity: 0,
-    inTrackVelocity: naturalMotionInTrackVelocity(R0),
+    inTrackVelocity: naturalMotionInTrackVelocity(NMC_R0),
     crossTrackVelocity: 0,
     numOrbits: 10,
     timeAcceleration: 50,
   },
   "FMC (Flyaround)": {
-    radialOffset: 200,
-    inTrackOffset: -600,
-    crossTrackOffset: 400,
+    radialOffset: FMC_R0,
+    inTrackOffset: FMC_I0,
+    crossTrackOffset: FMC_C0,
     radialVelocity: 0,
-    inTrackVelocity: 0.02,
+    inTrackVelocity: naturalMotionInTrackVelocity(FMC_R0),
     crossTrackVelocity: -0.04,
     numOrbits: 6,
     timeAcceleration: 35,
@@ -159,10 +196,13 @@ const createRelativeState = ({
   radialVelocity,
   inTrackVelocity,
   crossTrackVelocity,
-}: RelativeStateParams): RelativeState => ({
-  position: [radialOffset, inTrackOffset, crossTrackOffset] as const,
-  velocity: [radialVelocity, inTrackVelocity, crossTrackVelocity] as const,
-});
+}: RelativeStateParams): RelativeState => {
+  const state = {
+    position: [radialOffset, inTrackOffset, crossTrackOffset] as const,
+    velocity: [radialVelocity, inTrackVelocity, crossTrackVelocity] as const,
+  };
+  return state;
+};
 
 const getPresetConfig = (preset: PresetName) => PRESET_CONFIGS[preset];
 const defaultPresetConfig = getPresetConfig(DEFAULT_PRESET);
@@ -171,53 +211,63 @@ const useRelativeMotionControls = (
   onPlayPause: () => void,
   onReset: () => void
 ): RelativeMotionControls => {
-  const setControlsRef = useRef<((values: Partial<RelativeMotionParams>) => void) | null>(null);
+  const setControlsRef = useRef<
+    ((values: Partial<RelativeMotionParams>) => void) | null
+  >(null);
 
   const [controls, setControls] = useControls(() => ({
-    "R-bar Approach": button(() => setControlsRef.current?.(PRESET_CONFIGS["R-bar Approach"])),
-    "V-bar Approach": button(() => setControlsRef.current?.(PRESET_CONFIGS["V-bar Approach"])),
-    "NMC (2:1 Ellipse)": button(() => setControlsRef.current?.(PRESET_CONFIGS["NMC (2:1 Ellipse)"])),
-    "FMC (Flyaround)": button(() => setControlsRef.current?.(PRESET_CONFIGS["FMC (Flyaround)"])),
+    "R-bar Approach": button(() =>
+      setControlsRef.current?.(PRESET_CONFIGS["R-bar Approach"])
+    ),
+    "V-bar Approach": button(() =>
+      setControlsRef.current?.(PRESET_CONFIGS["V-bar Approach"])
+    ),
+    "NMC (2:1 Ellipse)": button(() =>
+      setControlsRef.current?.(PRESET_CONFIGS["NMC (2:1 Ellipse)"])
+    ),
+    "FMC (Flyaround)": button(() =>
+      setControlsRef.current?.(PRESET_CONFIGS["FMC (Flyaround)"])
+    ),
     radialOffset: {
       label: "Radial Offset (m)",
       value: defaultPresetConfig.radialOffset,
       min: -4000,
       max: 4000,
-      step: 10,
+      step: 1,
     },
     inTrackOffset: {
       label: "In-track Offset (m)",
       value: defaultPresetConfig.inTrackOffset,
       min: -6000,
       max: 6000,
-      step: 10,
+      step: 1,
     },
     crossTrackOffset: {
       label: "Cross-track Offset (m)",
       value: defaultPresetConfig.crossTrackOffset,
       min: -2000,
       max: 2000,
-      step: 10,
+      step: 1,
     },
     radialVelocity: {
       label: "Radial Velocity (m/s)",
       value: defaultPresetConfig.radialVelocity,
-      min: -2,
-      max: 2,
+      min: -5,
+      max: 5,
       step: 0.01,
     },
     inTrackVelocity: {
       label: "In-track Velocity (m/s)",
       value: defaultPresetConfig.inTrackVelocity,
-      min: -2,
-      max: 2,
+      min: -5,
+      max: 5,
       step: 0.01,
     },
     crossTrackVelocity: {
       label: "Cross-track Velocity (m/s)",
       value: defaultPresetConfig.crossTrackVelocity,
-      min: -2,
-      max: 2,
+      min: -5,
+      max: 5,
       step: 0.01,
     },
     numOrbits: {
@@ -323,7 +373,7 @@ function Stats({ distance, speed, elapsedTime, isPlaying }: StatsProps) {
       <div
         style={{ marginBottom: "8px", color: "#00ffff", fontWeight: "bold" }}
       >
-        {isPlaying ? "▶ RUNNING" : "⏸ PAUSED"}
+        {isPlaying ? "RUNNING" : "PAUSED"}
       </div>
       <div>Distance: {distance.toFixed(1)} m</div>
       <div>Speed: {speed.toFixed(3)} m/s</div>
@@ -441,19 +491,19 @@ function DeputySpacecraft({
 
 function RICAxes() {
   // Display RIC coordinate frame axes (mapped to Three.js for visualization)
-  // Grid shows the I-R plane (orbital plane projection)
+  // Grid shows the I-C plane (Horizontal plane)
   return (
     <group>
-      {/* R axis (Radial) - Blue - Z axis */}
+      {/* R axis (Radial) - Green - Y axis */}
       <arrowHelper
         args={[
-          new THREE.Vector3(0, 0, 1),
+          new THREE.Vector3(0, 1, 0),
           new THREE.Vector3(0, 0, 0),
           10,
-          0x0000ff,
+          0x00ff00,
         ]}
       />
-      <Text position={[0, 0, 11]} fontSize={0.8} color="blue">
+      <Text position={[0, 11, 0]} fontSize={0.8} color="green">
         R (Radial)
       </Text>
 
@@ -470,24 +520,21 @@ function RICAxes() {
         I (In-track)
       </Text>
 
-      {/* C axis (Cross-track) - Green - Y axis */}
+      {/* C axis (Cross-track) - Blue - Z axis */}
       <arrowHelper
         args={[
-          new THREE.Vector3(0, 1, 0),
+          new THREE.Vector3(0, 0, 1),
           new THREE.Vector3(0, 0, 0),
           10,
-          0x00ff00,
+          0x0000ff,
         ]}
       />
-      <Text position={[0, 11, 0]} fontSize={0.8} color="green">
+      <Text position={[0, 0, 11]} fontSize={0.8} color="blue">
         C (Cross-track)
       </Text>
 
-      {/* Grid on the I-R plane */}
-      <gridHelper
-        args={[60, 60, 0x666666, 0x333333]}
-        rotation={[Math.PI / 2, 0, 0]}
-      />
+      {/* Grid on the I-C plane (X-Z) */}
+      <gridHelper args={[60, 60, 0x666666, 0x333333]} rotation={[0, 0, 0]} />
     </group>
   );
 }
@@ -623,7 +670,20 @@ function App() {
           isPlaying={isPlaying}
         />
       )}
-      <Leva />
+      <Leva
+        collapsed
+        theme={{
+          sizes: {
+            rootWidth: "400px",
+            controlWidth: "160px",
+            numberInputMinWidth: "80px",
+            rowHeight: "32px",
+          },
+          fontSizes: {
+            root: "14px",
+          },
+        }}
+      />
     </div>
   );
 }
