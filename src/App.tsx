@@ -533,8 +533,19 @@ function RICAxes() {
         C (Cross-track)
       </Text>
 
-      {/* Grid on the I-C plane (X-Z) */}
-      <gridHelper args={[60, 60, 0x666666, 0x333333]} rotation={[0, 0, 0]} />
+      {/* Grid on the R-I plane (Orbital Plane) - X-Y */}
+      <gridHelper
+        args={[60, 60, 0x444444, 0x222222]}
+        rotation={[Math.PI / 2, 0, 0]}
+      />
+      <Text
+        position={[30, 30, 0]}
+        fontSize={0.8}
+        color="#666666"
+        rotation={[0, 0, 0]}
+      >
+        Orbital Plane (R-I)
+      </Text>
     </group>
   );
 }
