@@ -13,18 +13,13 @@ import {
 import * as THREE from "three";
 import "./App.css";
 
-// RIC frame: R (radial), I (in-track), C (cross-track)
-// rpo-suite uses [R, I, C] order for position and velocity vectors (right-handed)
-// Three.js display mapping: X = I (in-track), Y = C (cross-track), Z = R (radial)
-// This creates an intuitive view where the X-Z plane shows the orbital plane
-
-const SCALE = 0.01; // Scale down from meters to scene units
+const SCALE = 0.01;
 
 // Orbital elements for a low Earth orbit
 const orbitalElements: OrbitalElements = {
   eccentricity: 0.001,
-  gravitationalParameter: 3.986004418e14, // Earth's μ (m³/s²)
-  angularMomentum: 5.194e10, // for ~400km orbit (h = √(μ·a), a = 6771km)
+  gravitationalParameter: 3.986004418e14, // Earth's mu (m^3/s^2)
+  angularMomentum: 5.194e10, // for ~400km orbit (h = sqrt(mu*a), a = 6771km)
 };
 
 // Calculate orbital parameters
@@ -45,7 +40,7 @@ const TRAJECTORY_POINTS_PER_ORBIT = 120;
 
 // Coordinate conversion: RIC to Three.js
 // NOTE: This transformation reorders axes but preserves the right-handed orientation.
-// Mapping: RIC [R, I, C] → Three.js [I, R, C] → [X, Y, Z]
+// Mapping: RIC [R, I, C] -> Three.js [I, R, C] -> [X, Y, Z]
 // This maps the orbital plane (R-I) to the screen plane (X-Y), which is intuitive for RPO.
 const toThreeJS = (ricPosition: Vector3): Vector3 =>
   [
@@ -55,8 +50,6 @@ const toThreeJS = (ricPosition: Vector3): Vector3 =>
   ] as const;
 
 const naturalMotionInTrackVelocity = (radialOffset: number): number => {
-  // Calculate exact velocity for period matching (no drift) in elliptical orbit
-  // Based on energy matching condition: a_deputy = a_chief
   const {
     gravitationalParameter: mu,
     angularMomentum: h,
@@ -76,20 +69,8 @@ const naturalMotionInTrackVelocity = (radialOffset: number): number => {
   // Vis-viva equation: v^2 = mu * (2/r - 1/a)
   const v_d_mag = Math.sqrt(mu * (2 / r_d - 1 / a));
 
-  // Relative velocity in local frame
-  // v_rel = v_deputy_inertial - v_frame_at_deputy_radius
-  // v_frame = angular_velocity * r_d = (v_c / r_c) * r_d
   const v_rel = v_d_mag - v_c * (r_d / r_c);
 
-  // Return with correct sign (positive radial offset -> negative relative velocity for higher altitude/slower speed)
-  // In the local frame, if we are higher (r_d > r_c), we move slower than the frame (which speeds up with r).
-  // v_rel = v_inertial - v_frame. Both are positive in tangential direction.
-  // v_inertial < v_frame implies v_rel is negative.
-  //
-  // HOWEVER: The rpo-suite library or the coordinate system used here seems to require
-  // the opposite sign to achieve period matching (NMC).
-  // Empirical testing shows that a POSITIVE in-track velocity is required for a POSITIVE radial offset
-  // to achieve a closed 2:1 ellipse.
   return -v_rel;
 };
 
@@ -157,7 +138,7 @@ const PRESET_CONFIGS: Record<PresetName, RelativeMotionParams> = {
   },
   "V-bar Approach": {
     radialOffset: 0,
-    inTrackOffset: -1500, // V-bar target distance
+    inTrackOffset: -1500,
     crossTrackOffset: 0,
     radialVelocity: 0,
     inTrackVelocity: naturalMotionInTrackVelocity(0) - 0.14,
@@ -284,7 +265,7 @@ const useRelativeMotionControls = (
       max: 150,
       step: 1,
     },
-    "Play /Pause": button(onPlayPause),
+    "Play / Pause": button(onPlayPause),
     Reset: button(onReset),
   }));
 
