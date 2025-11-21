@@ -52,6 +52,7 @@ Open your browser to the URL shown in the terminal (typically http://localhost:5
    - Expand the Maneuver Planner folder in the controls
    - Set target coordinates (e.g., Target In-Track: 100)
    - Set transfer time (e.g., 1000 seconds)
+   - Toggle "FMC (Forced Motion)" to enable/disable forced circular motion after arrival
    - Click Execute Burn to calculate and apply the required velocity change
 
 ### Maneuver Planner
@@ -61,6 +62,8 @@ The Maneuver Planner allows you to perform precision rendezvous maneuvers.
 1. Physics: It calculates the exact change in velocity (Delta v) needed to transfer from your current position to a target position over a specified time. It uses the Yamanaka-Ankersen equations to account for orbital mechanics including eccentricity.
 
 2. Simulation: When you execute a burn, the simulation applies the velocity change instantly and resets the time. The spacecraft will then drift along a natural orbital path that arrives exactly at your target coordinates when the transfer time elapses.
+
+3. FMC (Forced Motion Circumnavigation): If the FMC toggle is enabled, the simulation will automatically apply a forced motion constraint after the transfer time elapses. This causes the spacecraft to fly a 1:1 circular trajectory around the chief starting from the target position, effectively simulating a forced circumnavigation or station-keeping maneuver. If disabled, the spacecraft will continue to drift naturally.
 
 ## Technical Details
 
