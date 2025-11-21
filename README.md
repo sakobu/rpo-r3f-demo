@@ -21,6 +21,7 @@ The visualization renders a chief spacecraft at the origin and a deputy spacecra
 - Real-time statistics (distance, speed, elapsed time, orbit number)
 - Adjustable time acceleration
 - RIC (Radial, In-track, Cross-track) coordinate frame display
+- Maneuver Planner for precision rendezvous operations
 
 ## Getting Started
 
@@ -47,6 +48,19 @@ Open your browser to the URL shown in the terminal (typically http://localhost:5
    - Left click and drag to rotate
    - Right click and drag to pan
    - Scroll to zoom
+5. Use the Maneuver Planner to execute precision burns:
+   - Expand the Maneuver Planner folder in the controls
+   - Set target coordinates (e.g., Target In-Track: 100)
+   - Set transfer time (e.g., 1000 seconds)
+   - Click Execute Burn to calculate and apply the required velocity change
+
+### Maneuver Planner
+
+The Maneuver Planner allows you to perform precision rendezvous maneuvers.
+
+1. Physics: It calculates the exact change in velocity (Delta v) needed to transfer from your current position to a target position over a specified time. It uses the Yamanaka-Ankersen equations to account for orbital mechanics including eccentricity.
+
+2. Simulation: When you execute a burn, the simulation applies the velocity change instantly and resets the time. The spacecraft will then drift along a natural orbital path that arrives exactly at your target coordinates when the transfer time elapses.
 
 ## Technical Details
 

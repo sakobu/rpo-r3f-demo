@@ -22,4 +22,6 @@ export type RelativeMotionParams = RelativeStateParams & {
   timeAcceleration: number;
 };
 
-export type RelativeMotionControls = RelativeMotionParams;
+export type RelativeMotionControls = RelativeMotionParams & {
+  setControls: (values: Partial<RelativeMotionParams>) => void;
+};

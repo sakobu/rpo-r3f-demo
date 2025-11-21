@@ -88,5 +88,10 @@ export const useRelativeMotionControls = (
     setControlsRef.current = setControls;
   }, [setControls]);
 
-  return controls as RelativeMotionControls;
+  return {
+    ...controls,
+    setControls: (values: Partial<RelativeMotionParams>) => setControls(values),
+  } as RelativeMotionControls & {
+    setControls: (values: Partial<RelativeMotionParams>) => void;
+  };
 };

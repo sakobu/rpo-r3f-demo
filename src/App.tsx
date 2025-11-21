@@ -7,6 +7,12 @@ import { type RelativeState } from "rpo-suite";
 import { ORBITAL_PARAMS } from "./config/orbital";
 import { createRelativeState } from "./utils/physics";
 import { useRelativeMotionControls } from "./hooks/useRelativeMotionControls";
+import {
+  useManeuverControls,
+  type ManeuverParams,
+} from "./hooks/useManeuverControls";
+import { calculateRendezvousBurn } from "./utils/maneuvers";
+import { trueAnomalyAtTime } from "rpo-suite";
 
 import { ChiefSpacecraft } from "./components/ChiefSpacecraft";
 import { DeputySpacecraft } from "./components/DeputySpacecraft";
@@ -38,6 +44,7 @@ function App() {
     crossTrackVelocity,
     numOrbits,
     timeAcceleration,
+    setControls,
   } = controls;
 
   const initialRelativeState = useMemo(
@@ -110,6 +117,56 @@ function App() {
   const handlePlayingChange = (playing: boolean) => {
     setIsPlaying(playing);
   };
+
+  const handleExecuteBurn = ({ targetPosition, transferTime }: ManeuverParams) => {
+    if (!currentState) return;
+
+    // 1. Calculate required delta-v
+    // We need the current true anomaly.
+    // Approximation: theta = n * t (for circular) or use trueAnomalyAtTime if we knew theta0.
+    // Since we started at theta0=0 and time is elapsedTime:
+    const currentTheta = trueAnomalyAtTime(
+      ORBITAL_PARAMS.elements,
+      0,
+      elapsedTime
+    );
+
+    const deltaV = calculateRendezvousBurn(
+      currentState,
+      targetPosition,
+      transferTime,
+      ORBITAL_PARAMS.elements,
+      currentTheta
+    );
+
+    console.log("Executing Burn:", deltaV);
+
+    // 2. Apply delta-v to current state
+    const newVelocity = [
+      currentState.velocity[0] + deltaV[0],
+      currentState.velocity[1] + deltaV[1],
+      currentState.velocity[2] + deltaV[2],
+    ] as const;
+
+    // 3. Update controls to reflect new state
+    // This effectively resets the simulation to start from this new state
+    setControls({
+      radialOffset: currentState.position[0],
+      inTrackOffset: currentState.position[1],
+      crossTrackOffset: currentState.position[2],
+      radialVelocity: newVelocity[0],
+      inTrackVelocity: newVelocity[1],
+      crossTrackVelocity: newVelocity[2],
+    });
+
+    // Reset elapsed time to 0 to start the new segment
+    setElapsedTime(0);
+    
+    // Ensure we are playing
+    setIsPlaying(true);
+  };
+
+  useManeuverControls(handleExecuteBurn);
 
   return (
     <div style={{ width: "100vw", height: "100vh" }}>
