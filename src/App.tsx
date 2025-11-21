@@ -26,6 +26,9 @@ function App() {
   const [isPlaying, setIsPlaying] = useState(true);
   const [currentState, setCurrentState] = useState<RelativeState | null>(null);
   const [elapsedTime, setElapsedTime] = useState(0);
+  const [maneuverConfig, setManeuverConfig] = useState<ManeuverParams | null>(
+    null
+  );
 
   const playPauseRef = useRef<() => void>(() => {});
   const resetRef = useRef<() => void>(() => {});
@@ -118,13 +121,13 @@ function App() {
     setIsPlaying(playing);
   };
 
-  const handleExecuteBurn = ({ targetPosition, transferTime }: ManeuverParams) => {
+  const handleExecuteBurn = ({
+    targetPosition,
+    transferTime,
+    fmc,
+  }: ManeuverParams) => {
     if (!currentState) return;
 
-    // 1. Calculate required delta-v
-    // We need the current true anomaly.
-    // Approximation: theta = n * t (for circular) or use trueAnomalyAtTime if we knew theta0.
-    // Since we started at theta0=0 and time is elapsedTime:
     const currentTheta = trueAnomalyAtTime(
       ORBITAL_PARAMS.elements,
       0,
@@ -141,15 +144,12 @@ function App() {
 
     console.log("Executing Burn:", deltaV);
 
-    // 2. Apply delta-v to current state
     const newVelocity = [
       currentState.velocity[0] + deltaV[0],
       currentState.velocity[1] + deltaV[1],
       currentState.velocity[2] + deltaV[2],
     ] as const;
 
-    // 3. Update controls to reflect new state
-    // This effectively resets the simulation to start from this new state
     setControls({
       radialOffset: currentState.position[0],
       inTrackOffset: currentState.position[1],
@@ -159,9 +159,10 @@ function App() {
       crossTrackVelocity: newVelocity[2],
     });
 
-    // Reset elapsed time to 0 to start the new segment
     setElapsedTime(0);
-    
+
+    setManeuverConfig({ targetPosition, transferTime, fmc });
+
     // Ensure we are playing
     setIsPlaying(true);
   };
@@ -176,7 +177,11 @@ function App() {
 
         <RICAxes />
         <ChiefSpacecraft />
-        <Trajectory initialState={initialRelativeState} numOrbits={numOrbits} />
+        <Trajectory
+          initialState={initialRelativeState}
+          numOrbits={numOrbits}
+          maneuverConfig={maneuverConfig}
+        />
 
         <TimeController
           key={controllerKey}
@@ -192,6 +197,7 @@ function App() {
           initialState={initialRelativeState}
           elapsedTime={elapsedTime}
           onStateUpdate={handleStateUpdate}
+          maneuverConfig={maneuverConfig}
         />
 
         <OrbitControls />

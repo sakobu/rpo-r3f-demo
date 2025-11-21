@@ -5,6 +5,7 @@ import { type Vector3 } from "rpo-suite";
 export type ManeuverParams = {
   targetPosition: Vector3;
   transferTime: number;
+  fmc: boolean;
 };
 
 export const useManeuverControls = (
@@ -26,7 +27,7 @@ export const useManeuverControls = (
         },
         targetInTrack: {
           label: "Target In-Track (m)",
-          value: 100,
+          value: 500,
           step: 1,
         },
         targetCrossTrack: {
@@ -41,6 +42,11 @@ export const useManeuverControls = (
           max: 10000,
           step: 10,
         },
+
+        fmc: {
+          label: "FMC (Forced Motion)",
+          value: false,
+        },
         "Execute Burn": button((get) => {
           const targetPosition: Vector3 = [
             get("Maneuver Planner.targetRadial"),
@@ -48,8 +54,9 @@ export const useManeuverControls = (
             get("Maneuver Planner.targetCrossTrack"),
           ];
           const transferTime = get("Maneuver Planner.transferTime");
+          const fmc = get("Maneuver Planner.fmc");
 
-          onExecuteRef.current({ targetPosition, transferTime });
+          onExecuteRef.current({ targetPosition, transferTime, fmc });
         }),
       },
       { collapsed: true }

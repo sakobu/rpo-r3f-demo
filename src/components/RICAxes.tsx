@@ -2,7 +2,6 @@ import { Text } from "@react-three/drei";
 import * as THREE from "three";
 
 export function RICAxes() {
-  // Display RIC coordinate frame axes (mapped to Three.js for visualization)
   return (
     <group>
       {/* R axis (Radial) - Green - Y axis */}
