@@ -17,7 +17,7 @@ export const useManeuverControls = (
     onExecuteRef.current = onExecute;
   }, [onExecute]);
 
-  const [values] = useControls(() => ({
+  const [values, set] = useControls(() => ({
     "Maneuver Planner": folder(
       {
         targetRadial: {
@@ -63,5 +63,5 @@ export const useManeuverControls = (
     ),
   }));
 
-  return values;
+  return { ...values, setValues: set };
 };

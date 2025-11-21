@@ -33,9 +33,62 @@ function App() {
   const playPauseRef = useRef<() => void>(() => {});
   const resetRef = useRef<() => void>(() => {});
 
+  const handleExecuteBurn = ({
+    targetPosition,
+    transferTime,
+    fmc,
+  }: ManeuverParams) => {
+    if (!currentState) return;
+
+    const currentTheta = trueAnomalyAtTime(
+      ORBITAL_PARAMS.elements,
+      0,
+      elapsedTime
+    );
+
+    const deltaV = calculateRendezvousBurn(
+      currentState,
+      targetPosition,
+      transferTime,
+      ORBITAL_PARAMS.elements,
+      currentTheta
+    );
+
+    console.log("Executing Burn:", deltaV);
+
+    const newVelocity = [
+      currentState.velocity[0] + deltaV[0],
+      currentState.velocity[1] + deltaV[1],
+      currentState.velocity[2] + deltaV[2],
+    ] as const;
+
+    setControls({
+      radialOffset: currentState.position[0],
+      inTrackOffset: currentState.position[1],
+      crossTrackOffset: currentState.position[2],
+      radialVelocity: newVelocity[0],
+      inTrackVelocity: newVelocity[1],
+      crossTrackVelocity: newVelocity[2],
+    });
+
+    setElapsedTime(0);
+
+    setManeuverConfig({ targetPosition, transferTime, fmc });
+
+    // Ensure we are playing
+    setIsPlaying(true);
+  };
+
+  const { setValues: setManeuverControls } =
+    useManeuverControls(handleExecuteBurn);
+
   const controls = useRelativeMotionControls(
     () => playPauseRef.current(),
-    () => resetRef.current()
+    () => resetRef.current(),
+    () => {
+      setManeuverConfig(null);
+      setManeuverControls({ fmc: false });
+    }
   );
 
   const {
@@ -121,53 +174,9 @@ function App() {
     setIsPlaying(playing);
   };
 
-  const handleExecuteBurn = ({
-    targetPosition,
-    transferTime,
-    fmc,
-  }: ManeuverParams) => {
-    if (!currentState) return;
 
-    const currentTheta = trueAnomalyAtTime(
-      ORBITAL_PARAMS.elements,
-      0,
-      elapsedTime
-    );
 
-    const deltaV = calculateRendezvousBurn(
-      currentState,
-      targetPosition,
-      transferTime,
-      ORBITAL_PARAMS.elements,
-      currentTheta
-    );
 
-    console.log("Executing Burn:", deltaV);
-
-    const newVelocity = [
-      currentState.velocity[0] + deltaV[0],
-      currentState.velocity[1] + deltaV[1],
-      currentState.velocity[2] + deltaV[2],
-    ] as const;
-
-    setControls({
-      radialOffset: currentState.position[0],
-      inTrackOffset: currentState.position[1],
-      crossTrackOffset: currentState.position[2],
-      radialVelocity: newVelocity[0],
-      inTrackVelocity: newVelocity[1],
-      crossTrackVelocity: newVelocity[2],
-    });
-
-    setElapsedTime(0);
-
-    setManeuverConfig({ targetPosition, transferTime, fmc });
-
-    // Ensure we are playing
-    setIsPlaying(true);
-  };
-
-  useManeuverControls(handleExecuteBurn);
 
   return (
     <div style={{ width: "100vw", height: "100vh" }}>
