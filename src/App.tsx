@@ -74,7 +74,6 @@ function App() {
 
     setManeuverConfig({ targetPosition, transferTime, fmc });
 
-    // Ensure we are playing
     setIsPlaying(true);
   };
 
