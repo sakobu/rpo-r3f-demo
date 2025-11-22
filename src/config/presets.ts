@@ -9,23 +9,33 @@ const NMC_R0 = 1000;
 const NMC_I0 = -2000;
 const NMC_C0 = 0;
 
+const RBAR_R0 = 1500;
+const RBAR_I0 = 0;
+const RBAR_C0 = 0;
+const RBAR_RDOT = -0.05;
+
+const VBAR_R0 = 0;
+const VBAR_I0 = -1500;
+const VBAR_C0 = 0;
+const VBAR_IDOT_OFFSET = -0.14;
+
 export const PRESET_CONFIGS: Record<PresetName, RelativeMotionParams> = {
   "R-bar Approach": {
-    radialOffset: 1500,
-    inTrackOffset: 0,
-    crossTrackOffset: 0,
-    radialVelocity: -0.05,
-    inTrackVelocity: naturalMotionInTrackVelocity(1500),
+    radialOffset: RBAR_R0,
+    inTrackOffset: RBAR_I0,
+    crossTrackOffset: RBAR_C0,
+    radialVelocity: RBAR_RDOT,
+    inTrackVelocity: naturalMotionInTrackVelocity(RBAR_R0),
     crossTrackVelocity: 0,
     numOrbits: 2,
     timeAcceleration: 40,
   },
   "V-bar Approach": {
-    radialOffset: 0,
-    inTrackOffset: -1500,
-    crossTrackOffset: 0,
+    radialOffset: VBAR_R0,
+    inTrackOffset: VBAR_I0,
+    crossTrackOffset: VBAR_C0,
     radialVelocity: 0,
-    inTrackVelocity: naturalMotionInTrackVelocity(0) - 0.14,
+    inTrackVelocity: naturalMotionInTrackVelocity(VBAR_R0) + VBAR_IDOT_OFFSET,
     crossTrackVelocity: 0,
     numOrbits: 2,
     timeAcceleration: 40,
