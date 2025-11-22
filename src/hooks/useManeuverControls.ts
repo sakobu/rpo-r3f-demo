@@ -23,16 +23,22 @@ export const useManeuverControls = (
         targetRadial: {
           label: "Target Radial (m)",
           value: 0,
+          min: -4000,
+          max: 4000,
           step: 1,
         },
         targetInTrack: {
           label: "Target In-Track (m)",
           value: 500,
+          min: -6000,
+          max: 6000,
           step: 1,
         },
         targetCrossTrack: {
           label: "Target Cross-Track (m)",
           value: 0,
+          min: -2000,
+          max: 2000,
           step: 1,
         },
         transferTime: {

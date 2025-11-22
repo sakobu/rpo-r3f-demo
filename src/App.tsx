@@ -54,7 +54,6 @@ function App() {
       currentTheta
     );
 
-    console.log("Executing Burn:", deltaV);
 
     const newVelocity = [
       currentState.velocity[0] + deltaV[0],
@@ -221,7 +220,6 @@ function App() {
       )}
       <SimulationInfo />
       <Leva
-        collapsed
         theme={{
           sizes: {
             rootWidth: "400px",
