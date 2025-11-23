@@ -11,6 +11,7 @@ import {
   J,
   kSquared,
 } from "rpo-suite";
+import { MATRIX_SINGULARITY_TOLERANCE } from "../config/constants";
 
 // --- Matrix Math Helpers ---
 
@@ -49,7 +50,7 @@ function invert3x3(m: Matrix3x3): Matrix3x3 {
     m[0][1] * (m[1][0] * m[2][2] - m[1][2] * m[2][0]) +
     m[0][2] * (m[1][0] * m[2][1] - m[1][1] * m[2][0]);
 
-  if (Math.abs(det) < 1e-10) {
+  if (Math.abs(det) < MATRIX_SINGULARITY_TOLERANCE) {
     throw new Error("Matrix is singular or near-singular");
   }
 

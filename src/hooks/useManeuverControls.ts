@@ -1,12 +1,7 @@
 import { useEffect, useRef } from "react";
 import { useControls, button, folder } from "leva";
 import { type Vector3 } from "rpo-suite";
-
-export type ManeuverParams = {
-  targetPosition: Vector3;
-  transferTime: number;
-  fmc: boolean;
-};
+import { type ManeuverParams } from "../types/simulation";
 
 export const useManeuverControls = (
   onExecute: (params: ManeuverParams) => void

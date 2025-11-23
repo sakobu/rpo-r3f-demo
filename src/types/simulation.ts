@@ -1,3 +1,5 @@
+import { type Vector3 } from "rpo-suite";
+
 export type TimeAdvanceResult = {
   readonly time: number;
   readonly completed: boolean;
@@ -24,4 +26,10 @@ export type RelativeMotionParams = RelativeStateParams & {
 
 export type RelativeMotionControls = RelativeMotionParams & {
   setControls: (values: Partial<RelativeMotionParams>) => void;
+};
+
+export type ManeuverParams = {
+  targetPosition: Vector3;
+  transferTime: number;
+  fmc: boolean;
 };

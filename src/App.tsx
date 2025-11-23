@@ -7,10 +7,8 @@ import { type RelativeState } from "rpo-suite";
 import { ORBITAL_PARAMS } from "./config/orbital";
 import { createRelativeState } from "./utils/physics";
 import { useRelativeMotionControls } from "./hooks/useRelativeMotionControls";
-import {
-  useManeuverControls,
-  type ManeuverParams,
-} from "./hooks/useManeuverControls";
+import { useManeuverControls } from "./hooks/useManeuverControls";
+import { type ManeuverParams } from "./types/simulation";
 import { calculateRendezvousBurn } from "./utils/maneuvers";
 import { trueAnomalyAtTime } from "rpo-suite";
 

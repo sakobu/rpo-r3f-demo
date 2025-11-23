@@ -1,11 +1,11 @@
 import { ORBITAL_PARAMS } from "../config/orbital";
+import { EARTH_RADIUS } from "../config/constants";
 
 export function SimulationInfo() {
   const { elements, period, semiMajorAxis } = ORBITAL_PARAMS;
   const { eccentricity, gravitationalParameter } = elements;
 
-  const earthRadius = 6371000;
-  const altitude = semiMajorAxis - earthRadius;
+  const altitude = semiMajorAxis - EARTH_RADIUS;
 
   return (
     <div

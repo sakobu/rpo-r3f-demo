@@ -9,7 +9,8 @@ import {
 import { ORBITAL_PARAMS } from "../config/orbital";
 import { TRAJECTORY_POINTS_PER_ORBIT } from "../config/constants";
 import { toThreeJS } from "../utils/coordinates";
-import { type ManeuverParams } from "../hooks/useManeuverControls";
+import { calculateFMCState } from "../utils/fmc";
+import { type ManeuverParams } from "../types/simulation";
 
 type TrajectoryProps = {
   readonly initialState: RelativeState;
@@ -35,25 +36,13 @@ export function Trajectory({
         const { fmc, targetPosition } = maneuverConfig;
 
         if (fmc) {
-          const R = Math.sqrt(
-            targetPosition[0] * targetPosition[0] +
-              targetPosition[1] * targetPosition[1]
-          );
-
-          if (R < 1e-3) {
-            trajectoryPoints.push(toThreeJS(targetPosition));
-            continue;
-          }
-
-          const alpha = Math.atan2(targetPosition[1], targetPosition[0]);
           const t_fmc = deltaTime - maneuverConfig.transferTime;
-          const n = ORBITAL_PARAMS.meanMotion;
-          const theta = n * t_fmc + alpha;
-
-          const x = R * Math.cos(theta);
-          const y = R * Math.sin(theta);
-
-          trajectoryPoints.push(toThreeJS([x, y, targetPosition[2]]));
+          const fmcState = calculateFMCState(
+            targetPosition,
+            t_fmc,
+            ORBITAL_PARAMS.meanMotion
+          );
+          trajectoryPoints.push(toThreeJS(fmcState.position));
           continue;
         }
       }

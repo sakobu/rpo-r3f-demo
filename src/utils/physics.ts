@@ -1,13 +1,23 @@
 import { type RelativeState } from "rpo-suite";
-import { orbitalElements, ORBITAL_PARAMS } from "../config/orbital";
+import { ORBITAL_ELEMENTS, ORBITAL_PARAMS } from "../config/orbital";
 import { type RelativeStateParams } from "../types/simulation";
 
+/**
+ * Calculate the in-track velocity required for a deputy at a given radial offset
+ * to maintain zero secular drift relative to the chief spacecraft.
+ *
+ * Uses the vis-viva equation to ensure the deputy has the same orbital energy
+ * (and thus same period) as the chief, preventing along-track drift over time.
+ *
+ * @param radialOffset Radial separation from chief in meters (positive = higher altitude)
+ * @returns Required relative in-track velocity in m/s
+ */
 export const naturalMotionInTrackVelocity = (radialOffset: number): number => {
   const {
     gravitationalParameter: mu,
     angularMomentum: h,
     eccentricity: e,
-  } = orbitalElements;
+  } = ORBITAL_ELEMENTS;
 
   // Chief state at perigee (theta = 0)
   const r_c = (h * h) / (mu * (1 + e)); // Radius at perigee
@@ -27,6 +37,12 @@ export const naturalMotionInTrackVelocity = (radialOffset: number): number => {
   return -v_rel;
 };
 
+/**
+ * Create a RelativeState object from individual position/velocity components.
+ *
+ * @param params Position and velocity components in RIC frame (meters, m/s)
+ * @returns RelativeState with position and velocity vectors
+ */
 export const createRelativeState = ({
   radialOffset,
   inTrackOffset,

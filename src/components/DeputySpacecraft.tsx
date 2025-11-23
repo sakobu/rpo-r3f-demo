@@ -3,7 +3,8 @@ import { Text } from "@react-three/drei";
 import { propagateYA, trueAnomalyAtTime, type RelativeState } from "rpo-suite";
 import { ORBITAL_PARAMS } from "../config/orbital";
 import { toThreeJS } from "../utils/coordinates";
-import { type ManeuverParams } from "../hooks/useManeuverControls";
+import { calculateFMCState } from "../utils/fmc";
+import { type ManeuverParams } from "../types/simulation";
 
 type DeputyProps = {
   readonly initialState: RelativeState;
@@ -26,35 +27,12 @@ export function DeputySpacecraft({
       const { fmc, targetPosition } = maneuverConfig;
 
       if (fmc) {
-        const R = Math.sqrt(
-          targetPosition[0] * targetPosition[0] +
-            targetPosition[1] * targetPosition[1]
-        );
-        
-        if (R < 1e-3) {
-             return {
-                position: targetPosition,
-                velocity: [0, 0, 0] as const,
-              };
-        }
-
-
-        const alpha = Math.atan2(targetPosition[1], targetPosition[0]);
-
         const t_fmc = elapsedTime - maneuverConfig.transferTime;
-        const n = ORBITAL_PARAMS.meanMotion;
-        const theta = n * t_fmc + alpha;
-
-        const x = R * Math.cos(theta);
-        const y = R * Math.sin(theta);
-
-        const vx = -R * n * Math.sin(theta);
-        const vy = R * n * Math.cos(theta);
-
-        return {
-          position: [x, y, targetPosition[2]] as const,
-          velocity: [vx, vy, 0] as const,
-        };
+        return calculateFMCState(
+          targetPosition,
+          t_fmc,
+          ORBITAL_PARAMS.meanMotion
+        );
       }
     }
 

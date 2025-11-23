@@ -1,10 +1,22 @@
 import { type Vector3 } from "rpo-suite";
 import { SCALE } from "../config/constants";
 
-// Coordinate conversion: RIC to Three.js
-// NOTE: This transformation reorders axes but preserves the right-handed orientation.
-// Mapping: RIC [R, I, C] -> Three.js [I, R, C] -> [X, Y, Z]
-// This maps the orbital plane (R-I) to the screen plane (X-Y)
+/**
+ * Convert RIC (Radial, In-track, Cross-track) coordinates to Three.js coordinates.
+ *
+ * RIC Frame (spacecraft-centered):
+ * - R (Radial): Points from Earth center through spacecraft, outward
+ * - I (In-track): Points in velocity direction (along-track)
+ * - C (Cross-track): Completes right-hand system (normal to orbital plane)
+ *
+ * Three.js mapping (for visualization):
+ * - X ← I (In-track) — horizontal screen axis
+ * - Y ← R (Radial) — vertical screen axis
+ * - Z ← C (Cross-track) — depth axis
+ *
+ * @param ricPosition Position in RIC frame [R, I, C] in meters
+ * @returns Position in Three.js frame [X, Y, Z] scaled for visualization
+ */
 export const toThreeJS = (ricPosition: Vector3): Vector3 =>
   [
     ricPosition[1] * SCALE, // I (In-track) -> X
