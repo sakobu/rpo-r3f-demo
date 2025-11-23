@@ -1,6 +1,6 @@
 import { Canvas } from "@react-three/fiber";
 import { OrbitControls } from "@react-three/drei";
-import { useMemo, useState, useRef } from "react";
+import { useMemo, useState, useRef, useEffect, useCallback } from "react";
 import { Leva } from "leva";
 import { type RelativeState } from "rpo-suite";
 
@@ -29,63 +29,17 @@ function App() {
   const [maneuverConfig, setManeuverConfig] = useState<ManeuverParams | null>(
     null
   );
+  const [presetVersion, setPresetVersion] = useState(0);
 
   const playPauseRef = useRef<() => void>(() => {});
   const resetRef = useRef<() => void>(() => {});
-
-  const handleExecuteBurn = ({
-    targetPosition,
-    transferTime,
-    fmc,
-  }: ManeuverParams) => {
-    if (!currentState) return;
-
-    const currentTheta = trueAnomalyAtTime(
-      ORBITAL_PARAMS.elements,
-      0,
-      elapsedTime
-    );
-
-    const deltaV = calculateRendezvousBurn(
-      currentState,
-      targetPosition,
-      transferTime,
-      ORBITAL_PARAMS.elements,
-      currentTheta
-    );
-
-
-    const newVelocity = [
-      currentState.velocity[0] + deltaV[0],
-      currentState.velocity[1] + deltaV[1],
-      currentState.velocity[2] + deltaV[2],
-    ] as const;
-
-    setControls({
-      radialOffset: currentState.position[0],
-      inTrackOffset: currentState.position[1],
-      crossTrackOffset: currentState.position[2],
-      radialVelocity: newVelocity[0],
-      inTrackVelocity: newVelocity[1],
-      crossTrackVelocity: newVelocity[2],
-    });
-
-    setElapsedTime(0);
-
-    setManeuverConfig({ targetPosition, transferTime, fmc });
-
-    setIsPlaying(true);
-  };
-
-  const { setValues: setManeuverControls } =
-    useManeuverControls(handleExecuteBurn);
 
   const controls = useRelativeMotionControls(
     () => playPauseRef.current(),
     () => resetRef.current(),
     () => {
       setManeuverConfig(null);
-      setManeuverControls({ fmc: false });
+      setPresetVersion((version) => version + 1);
     }
   );
 
@@ -100,6 +54,54 @@ function App() {
     timeAcceleration,
     setControls,
   } = controls;
+
+  const handleExecuteBurn = useCallback(
+    ({ targetPosition, transferTime, fmc }: ManeuverParams) => {
+      if (!currentState) return;
+
+      const currentTheta = trueAnomalyAtTime(
+        ORBITAL_PARAMS.elements,
+        0,
+        elapsedTime
+      );
+
+      const deltaV = calculateRendezvousBurn(
+        currentState,
+        targetPosition,
+        transferTime,
+        ORBITAL_PARAMS.elements,
+        currentTheta
+      );
+
+      const newVelocity = [
+        currentState.velocity[0] + deltaV[0],
+        currentState.velocity[1] + deltaV[1],
+        currentState.velocity[2] + deltaV[2],
+      ] as const;
+
+      setControls({
+        radialOffset: currentState.position[0],
+        inTrackOffset: currentState.position[1],
+        crossTrackOffset: currentState.position[2],
+        radialVelocity: newVelocity[0],
+        inTrackVelocity: newVelocity[1],
+        crossTrackVelocity: newVelocity[2],
+      });
+
+      setElapsedTime(0);
+      setManeuverConfig({ targetPosition, transferTime, fmc });
+      setIsPlaying(true);
+    },
+    [currentState, elapsedTime, setControls]
+  );
+
+  const { setValues: setManeuverControls } =
+    useManeuverControls(handleExecuteBurn);
+
+  useEffect(() => {
+    if (presetVersion === 0) return;
+    setManeuverControls({ fmc: false });
+  }, [presetVersion, setManeuverControls]);
 
   const initialRelativeState = useMemo(
     () =>
@@ -171,10 +173,6 @@ function App() {
   const handlePlayingChange = (playing: boolean) => {
     setIsPlaying(playing);
   };
-
-
-
-
 
   return (
     <div style={{ width: "100vw", height: "100vh" }}>
