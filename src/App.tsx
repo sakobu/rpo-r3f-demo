@@ -34,6 +34,8 @@ function App() {
   );
   const [presetVersion, setPresetVersion] = useState(0);
   const [waypoints, setWaypoints] = useState<Waypoint[]>([]);
+  const [postExecutionState, setPostExecutionState] =
+    useState<RelativeState | null>(null);
 
   const orbitControlsRef = useRef<OrbitControlsImpl>(null);
   const currentStateRef = useRef<RelativeState | null>(null);
@@ -48,6 +50,7 @@ function App() {
     advance: advanceTime,
     reset: resetTime,
     setElapsedTime,
+    setBaseTheta,
   } = useSimulationTime();
 
   // Maneuver queue hook
@@ -68,6 +71,7 @@ function App() {
       setManeuverConfig(null);
       cancelExecution();
       setWaypoints([]);
+      setPostExecutionState(null);
       setPresetVersion((version) => version + 1);
     }
   );
@@ -218,11 +222,23 @@ function App() {
       crossTrackVelocity: result.newState.velocity[2],
     });
 
-    // Reset time for next leg if continuing
-    if (result.type === "continue") {
+    // Reset time for next leg or for free-flight after completion
+    if (result.type === "continue" || result.type === "complete") {
       setElapsedTime(0);
     }
-  }, [elapsedTime, checkLegTransition, setControls, setElapsedTime]);
+
+    // Update state for free-flight after waypoint completion
+    if (result.type === "complete") {
+      if (result.nextTheta !== undefined) {
+        setBaseTheta(result.nextTheta);
+      }
+      // Store post-execution state in React state (bypasses Leva batching issue)
+      setPostExecutionState({
+        position: result.newState.position,
+        velocity: result.newState.velocity,
+      });
+    }
+  }, [elapsedTime, checkLegTransition, setControls, setElapsedTime, setBaseTheta]);
 
   // Disable OrbitControls while dragging waypoints
   const handleWaypointDragStart = useCallback(() => {
@@ -313,11 +329,11 @@ function App() {
         <RICAxes />
         <ChiefSpacecraft />
         <Trajectory
-          initialState={initialRelativeState}
+          initialState={postExecutionState ?? initialRelativeState}
           numOrbits={numOrbits}
           maneuverConfig={maneuverConfig}
           maneuverQueue={maneuverQueue}
-          baseTheta={maneuverQueue?.currentTheta ?? 0}
+          baseTheta={maneuverQueue?.currentTheta ?? currentTheta}
         />
 
         <TimeController
@@ -329,11 +345,11 @@ function App() {
         />
 
         <DeputySpacecraft
-          initialState={initialRelativeState}
+          initialState={postExecutionState ?? initialRelativeState}
           elapsedTime={elapsedTime}
           onStateUpdate={handleStateUpdate}
           maneuverConfig={maneuverConfig}
-          baseTheta={maneuverQueue?.currentTheta ?? 0}
+          baseTheta={maneuverQueue?.currentTheta ?? currentTheta}
         />
 
         <WaypointManager

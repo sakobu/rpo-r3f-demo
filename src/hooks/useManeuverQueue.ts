@@ -183,6 +183,7 @@ export function useManeuverQueue(): UseManeuverQueueReturn {
           position: currentState.position,
           velocity: [0, 0, 0] as Vector3,
         },
+        nextTheta,
       };
     }
   }, []);
