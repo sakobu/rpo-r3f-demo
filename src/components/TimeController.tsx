@@ -1,25 +1,22 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, forwardRef, useImperativeHandle } from "react";
 import { useFrame } from "@react-three/fiber";
 import { advanceSimulationTime } from "../utils/time";
+
+export type TimeControllerHandle = {
+  toggle: () => void;
+  reset: () => void;
+};
 
 type TimeControllerProps = {
   readonly acceleration: number;
   readonly duration: number;
-  readonly onPlayPauseRef: (fn: () => void) => void;
-  readonly onResetRef: (fn: () => void) => void;
+  readonly isPlaying: boolean;
   readonly onPlayingChange: (isPlaying: boolean) => void;
   readonly onTimeChange: (elapsedTime: number) => void;
 };
 
-export function TimeController({
-  acceleration,
-  duration,
-  onPlayPauseRef,
-  onResetRef,
-  onPlayingChange,
-  onTimeChange,
-}: TimeControllerProps) {
-  const [isPlaying, setIsPlaying] = useState(true);
+export const TimeController = forwardRef<TimeControllerHandle, TimeControllerProps>(
+  function TimeController({ acceleration, duration, isPlaying, onPlayingChange, onTimeChange }, ref) {
   const [elapsedTime, setElapsedTime] = useState(0);
 
   useFrame((_, delta) => {
@@ -33,7 +30,7 @@ export function TimeController({
         );
 
         if (completed) {
-          setIsPlaying(false);
+          onPlayingChange(false);
         }
 
         return time;
@@ -42,20 +39,16 @@ export function TimeController({
   });
 
   useEffect(() => {
-    onPlayingChange(isPlaying);
-  }, [isPlaying, onPlayingChange]);
-
-  useEffect(() => {
     onTimeChange(elapsedTime);
   }, [elapsedTime, onTimeChange]);
 
-  useEffect(() => {
-    onPlayPauseRef(() => setIsPlaying((p) => !p));
-    onResetRef(() => {
+  useImperativeHandle(ref, () => ({
+    toggle: () => onPlayingChange(!isPlaying),
+    reset: () => {
       setElapsedTime(0);
-      setIsPlaying(true);
-    });
-  }, [onPlayPauseRef, onResetRef]);
+      onPlayingChange(true);
+    },
+  }));
 
   return null;
-}
+});
