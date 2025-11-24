@@ -52,7 +52,7 @@ export function useSimulationTime(): UseSimulationTimeReturn {
 
   const reset = useCallback(() => {
     setElapsedTime(0);
-    setIsPlaying(true);
+    setIsPlaying(false);
   }, []);
 
   return {

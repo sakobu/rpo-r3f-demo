@@ -66,7 +66,8 @@ function App() {
     resetTime,
     () => {
       setManeuverConfig(null);
-      cancelExecution(); // Clear waypoint queue on reset
+      cancelExecution();
+      setWaypoints([]);
       setPresetVersion((version) => version + 1);
     }
   );

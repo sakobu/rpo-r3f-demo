@@ -51,7 +51,19 @@ export function Trajectory({
     );
   }, [initialState, numOrbits, maneuverConfig, maneuverQueue, baseTheta]);
 
-  return <Line points={points} color="#00ffff" lineWidth={1} />;
+  const isFreeFlightOnly =
+    !maneuverConfig && (!maneuverQueue || maneuverQueue.legs.length === 0);
+
+  return (
+    <Line
+      points={points}
+      color={isFreeFlightOnly ? "#4a9999" : "#00ffff"}
+      lineWidth={1}
+      dashed={isFreeFlightOnly}
+      dashSize={0.5}
+      gapSize={0.3}
+    />
+  );
 }
 
 /**
