@@ -6,6 +6,7 @@ import {
 } from "rpo-suite";
 import { type Waypoint, type ManeuverLeg } from "../types/waypoint";
 import { calculateRendezvousBurn } from "./maneuvers";
+import { applyBurn, stationaryState } from "./propagation";
 import { ORBITAL_PARAMS } from "../config/orbital";
 import {
   DEFAULT_APPROACH_RATE,
@@ -56,14 +57,7 @@ export function calculateLegManeuver(
   );
 
   // Apply departure burn and propagate to find arrival state
-  const postBurnState: RelativeState = {
-    position: state.position,
-    velocity: [
-      state.velocity[0] + deltaV[0],
-      state.velocity[1] + deltaV[1],
-      state.velocity[2] + deltaV[2],
-    ] as Vector3,
-  };
+  const postBurnState = applyBurn(state, deltaV);
 
   const nextTheta = trueAnomalyAtTime(
     ORBITAL_PARAMS.elements,
@@ -124,10 +118,7 @@ export function calculateManeuverQueue(
 
     // For next leg, start from stopped state at waypoint
     // (arrival burn has nulled the velocity)
-    state = {
-      position: arrivalState.position,
-      velocity: [0, 0, 0] as Vector3,
-    };
+    state = stationaryState(arrivalState.position);
     theta = nextTheta;
   }
 

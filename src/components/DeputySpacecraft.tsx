@@ -1,9 +1,8 @@
 import { useMemo, useEffect } from "react";
 import { Text } from "@react-three/drei";
-import { propagateYA, trueAnomalyAtTime, type RelativeState } from "rpo-suite";
-import { ORBITAL_PARAMS } from "../config/orbital";
+import { type RelativeState } from "rpo-suite";
 import { toThreeJS } from "../utils/coordinates";
-import { calculateFMCState } from "../utils/fmc";
+import { propagateToTime } from "../utils/propagation";
 import { type ManeuverParams } from "../types/simulation";
 
 type DeputyProps = {
@@ -11,7 +10,7 @@ type DeputyProps = {
   readonly elapsedTime: number;
   readonly onStateUpdate: (state: RelativeState) => void;
   readonly maneuverConfig: ManeuverParams | null;
-  readonly baseTheta?: number; // starting true anomaly (defaults to 0)
+  readonly baseTheta?: number;
 };
 
 export function DeputySpacecraft({
@@ -21,39 +20,10 @@ export function DeputySpacecraft({
   maneuverConfig,
   baseTheta = 0,
 }: DeputyProps) {
-  const state = useMemo(() => {
-    if (
-      maneuverConfig &&
-      elapsedTime >= maneuverConfig.transferTime
-    ) {
-      const { fmc, targetPosition } = maneuverConfig;
-
-      if (fmc) {
-        const t_fmc = elapsedTime - maneuverConfig.transferTime;
-        return calculateFMCState(
-          targetPosition,
-          t_fmc,
-          ORBITAL_PARAMS.meanMotion
-        );
-      }
-    }
-
-    const theta0 = baseTheta;
-    const thetaF = trueAnomalyAtTime(
-      ORBITAL_PARAMS.elements,
-      theta0,
-      elapsedTime
-    );
-
-    return propagateYA(
-      initialState,
-      ORBITAL_PARAMS.elements,
-      theta0,
-      thetaF,
-      elapsedTime,
-      "RIC"
-    );
-  }, [elapsedTime, initialState, maneuverConfig, baseTheta]);
+  const state = useMemo(
+    () => propagateToTime(initialState, elapsedTime, baseTheta, maneuverConfig),
+    [elapsedTime, initialState, maneuverConfig, baseTheta]
+  );
 
   const position = useMemo(() => toThreeJS(state.position), [state]);
 

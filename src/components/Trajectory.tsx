@@ -9,7 +9,11 @@ import {
 import { ORBITAL_PARAMS } from "../config/orbital";
 import { TRAJECTORY_POINTS_PER_ORBIT } from "../config/constants";
 import { toThreeJS } from "../utils/coordinates";
-import { calculateFMCState } from "../utils/fmc";
+import {
+  computeFreeFlightPoints,
+  computeLegPoints,
+  stationaryState,
+} from "../utils/propagation";
 import { type ManeuverParams } from "../types/simulation";
 import { type ManeuverQueue } from "../types/waypoint";
 
@@ -37,49 +41,14 @@ export function Trajectory({
     }
 
     // Standard trajectory rendering (single-point maneuver or free flight)
-    const trajectoryPoints: Vector3[] = [];
     const totalPoints = numOrbits * TRAJECTORY_POINTS_PER_ORBIT;
-
-    for (let i = 0; i <= totalPoints; i++) {
-      const deltaTime =
-        (i / TRAJECTORY_POINTS_PER_ORBIT) * ORBITAL_PARAMS.period;
-
-      // Check for Post-Maneuver Logic
-      if (maneuverConfig && deltaTime >= maneuverConfig.transferTime) {
-        const { fmc, targetPosition } = maneuverConfig;
-
-        if (fmc) {
-          const t_fmc = deltaTime - maneuverConfig.transferTime;
-          const fmcState = calculateFMCState(
-            targetPosition,
-            t_fmc,
-            ORBITAL_PARAMS.meanMotion
-          );
-          trajectoryPoints.push(toThreeJS(fmcState.position));
-          continue;
-        }
-      }
-
-      const theta0 = baseTheta;
-      const thetaF = trueAnomalyAtTime(
-        ORBITAL_PARAMS.elements,
-        theta0,
-        deltaTime
-      );
-
-      const state = propagateYA(
-        initialState,
-        ORBITAL_PARAMS.elements,
-        theta0,
-        thetaF,
-        deltaTime,
-        "RIC"
-      );
-
-      trajectoryPoints.push(toThreeJS(state.position));
-    }
-
-    return trajectoryPoints;
+    return computeFreeFlightPoints(
+      initialState,
+      baseTheta,
+      totalPoints,
+      TRAJECTORY_POINTS_PER_ORBIT,
+      maneuverConfig
+    );
   }, [initialState, numOrbits, maneuverConfig, maneuverQueue, baseTheta]);
 
   return <Line points={points} color="#00ffff" lineWidth={1} />;
@@ -95,7 +64,7 @@ function computeWaypointTrajectory(
   queue: ManeuverQueue,
   numOrbits: number
 ): Vector3[] {
-  const points: Vector3[] = [];
+  const allPoints: Vector3[] = [];
   let state = initialState;
   let theta = queue.currentTheta;
   let totalElapsedTime = 0;
@@ -105,49 +74,28 @@ function computeWaypointTrajectory(
     const leg = queue.legs[i];
 
     // For the first (current) leg, state already has departure burn applied
-    // For subsequent legs, we need to apply the departure burn
+    // For subsequent legs, we need to apply the departure burn from zero velocity
     const legState: RelativeState =
       i === queue.currentLegIndex
         ? state
         : {
             position: state.position,
-            velocity: [
-              leg.deltaV[0], // From zero velocity (after arrival burn)
-              leg.deltaV[1],
-              leg.deltaV[2],
-            ] as Vector3,
+            velocity: leg.deltaV,
           };
 
     // Generate points along this leg's trajectory
-    for (let j = 0; j <= POINTS_PER_LEG; j++) {
-      const t = (j / POINTS_PER_LEG) * leg.transferTime;
-      const thetaT = trueAnomalyAtTime(ORBITAL_PARAMS.elements, theta, t);
-
-      const propagatedState = propagateYA(
-        legState,
-        ORBITAL_PARAMS.elements,
-        theta,
-        thetaT,
-        t,
-        "RIC"
-      );
-
-      points.push(toThreeJS(propagatedState.position));
-    }
+    const { points, endTheta } = computeLegPoints(
+      legState,
+      theta,
+      leg.transferTime,
+      POINTS_PER_LEG
+    );
+    allPoints.push(...points);
 
     // Update for next leg: advance theta and set state at waypoint with zero velocity
-    const nextTheta = trueAnomalyAtTime(
-      ORBITAL_PARAMS.elements,
-      theta,
-      leg.transferTime
-    );
-
     totalElapsedTime += leg.transferTime;
-    state = {
-      position: leg.targetPosition,
-      velocity: [0, 0, 0] as Vector3,
-    };
-    theta = nextTheta;
+    state = stationaryState(leg.targetPosition);
+    theta = endTheta;
   }
 
   // Continue trajectory from final waypoint (zero velocity) for remaining orbit duration
@@ -159,6 +107,7 @@ function computeWaypointTrajectory(
       (remainingDuration / ORBITAL_PARAMS.period) * TRAJECTORY_POINTS_PER_ORBIT
     );
 
+    // Generate remaining free-flight points
     for (let i = 1; i <= remainingPoints; i++) {
       const t = (i / TRAJECTORY_POINTS_PER_ORBIT) * ORBITAL_PARAMS.period;
       const thetaT = trueAnomalyAtTime(ORBITAL_PARAMS.elements, theta, t);
@@ -172,9 +121,9 @@ function computeWaypointTrajectory(
         "RIC"
       );
 
-      points.push(toThreeJS(propagatedState.position));
+      allPoints.push(toThreeJS(propagatedState.position));
     }
   }
 
-  return points;
+  return allPoints;
 }
