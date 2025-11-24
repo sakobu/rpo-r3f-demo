@@ -61,7 +61,7 @@ export function WaypointPreview({
     <Line
       points={previewPoints}
       color="#ffcc00"
-      lineWidth={2}
+      lineWidth={1}
       dashed
       dashSize={0.5}
       gapSize={0.3}

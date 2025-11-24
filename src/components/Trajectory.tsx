@@ -34,13 +34,15 @@ export function Trajectory({
   maneuverQueue,
   baseTheta = 0,
 }: TrajectoryProps) {
-  const points = useMemo(() => {
-    // When executing waypoint queue, render multi-segment trajectory
-    if (maneuverQueue && maneuverQueue.legs.length > 0) {
-      return computeWaypointTrajectory(initialState, maneuverQueue, numOrbits);
-    }
+  const hasWaypointQueue = maneuverQueue && maneuverQueue.legs.length > 0;
 
-    // Standard trajectory rendering (single-point maneuver or free flight)
+  const waypointTrajectory = useMemo(() => {
+    if (!hasWaypointQueue) return null;
+    return computeWaypointTrajectory(initialState, maneuverQueue, numOrbits);
+  }, [hasWaypointQueue, initialState, maneuverQueue, numOrbits]);
+
+  const standardPoints = useMemo(() => {
+    if (hasWaypointQueue) return null;
     const totalPoints = numOrbits * TRAJECTORY_POINTS_PER_ORBIT;
     return computeFreeFlightPoints(
       initialState,
@@ -49,14 +51,39 @@ export function Trajectory({
       TRAJECTORY_POINTS_PER_ORBIT,
       maneuverConfig
     );
-  }, [initialState, numOrbits, maneuverConfig, maneuverQueue, baseTheta]);
+  }, [hasWaypointQueue, initialState, baseTheta, numOrbits, maneuverConfig]);
 
-  const isFreeFlightOnly =
-    !maneuverConfig && (!maneuverQueue || maneuverQueue.legs.length === 0);
+  // Waypoint queue: render leg trajectory (solid) + free-flight continuation (dashed)
+  if (waypointTrajectory) {
+    return (
+      <>
+        {waypointTrajectory.legPoints.length >= 2 && (
+          <Line
+            points={waypointTrajectory.legPoints}
+            color="#00ffff"
+            lineWidth={1}
+          />
+        )}
+        {waypointTrajectory.freeFlightPoints.length >= 2 && (
+          <Line
+            points={waypointTrajectory.freeFlightPoints}
+            color="#4a9999"
+            lineWidth={1}
+            dashed
+            dashSize={0.5}
+            gapSize={0.3}
+          />
+        )}
+      </>
+    );
+  }
+
+  // Standard trajectory (single maneuver or free flight)
+  const isFreeFlightOnly = !maneuverConfig;
 
   return (
     <Line
-      points={points}
+      points={standardPoints ?? []}
       color={isFreeFlightOnly ? "#4a9999" : "#00ffff"}
       lineWidth={1}
       dashed={isFreeFlightOnly}
@@ -65,6 +92,11 @@ export function Trajectory({
     />
   );
 }
+
+type WaypointTrajectoryResult = {
+  legPoints: Vector3[];
+  freeFlightPoints: Vector3[];
+};
 
 /**
  * Compute trajectory for active waypoint queue execution.
@@ -75,8 +107,9 @@ function computeWaypointTrajectory(
   initialState: RelativeState,
   queue: ManeuverQueue,
   numOrbits: number
-): Vector3[] {
-  const allPoints: Vector3[] = [];
+): WaypointTrajectoryResult {
+  const legPoints: Vector3[] = [];
+  const freeFlightPoints: Vector3[] = [];
   let state = initialState;
   let theta = queue.currentTheta;
   let totalElapsedTime = 0;
@@ -102,7 +135,7 @@ function computeWaypointTrajectory(
       leg.transferTime,
       POINTS_PER_LEG
     );
-    allPoints.push(...points);
+    legPoints.push(...points);
 
     // Update for next leg: advance theta and set state at waypoint with zero velocity
     totalElapsedTime += leg.transferTime;
@@ -119,6 +152,11 @@ function computeWaypointTrajectory(
       (remainingDuration / ORBITAL_PARAMS.period) * TRAJECTORY_POINTS_PER_ORBIT
     );
 
+    // Add connection point from end of legs
+    if (legPoints.length > 0) {
+      freeFlightPoints.push(legPoints[legPoints.length - 1]);
+    }
+
     // Generate remaining free-flight points
     for (let i = 1; i <= remainingPoints; i++) {
       const t = (i / TRAJECTORY_POINTS_PER_ORBIT) * ORBITAL_PARAMS.period;
@@ -133,9 +171,9 @@ function computeWaypointTrajectory(
         "RIC"
       );
 
-      allPoints.push(toThreeJS(propagatedState.position));
+      freeFlightPoints.push(toThreeJS(propagatedState.position));
     }
   }
 
-  return allPoints;
+  return { legPoints, freeFlightPoints };
 }

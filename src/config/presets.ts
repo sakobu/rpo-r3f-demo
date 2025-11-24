@@ -27,7 +27,7 @@ export const PRESET_CONFIGS: Record<PresetName, RelativeMotionParams> = {
     radialVelocity: RBAR_RDOT,
     inTrackVelocity: naturalMotionInTrackVelocity(RBAR_R0),
     crossTrackVelocity: 0,
-    numOrbits: 2,
+    numOrbits: 1,
     timeAcceleration: 40,
   },
   "V-bar Approach": {
@@ -47,7 +47,7 @@ export const PRESET_CONFIGS: Record<PresetName, RelativeMotionParams> = {
     radialVelocity: 0,
     inTrackVelocity: naturalMotionInTrackVelocity(NMC_R0),
     crossTrackVelocity: 0,
-    numOrbits: 10,
+    numOrbits: 1,
     timeAcceleration: 50,
   },
 };
