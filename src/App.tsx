@@ -3,7 +3,7 @@ import { OrbitControls } from "@react-three/drei";
 import type { OrbitControls as OrbitControlsImpl } from "three-stdlib";
 import { useMemo, useState, useRef, useEffect, useCallback } from "react";
 import { Leva } from "leva";
-import { type RelativeState, type Vector3, trueAnomalyAtTime } from "rpo-suite";
+import { type RelativeState, type Vector3 } from "rpo-suite";
 
 import { ORBITAL_PARAMS } from "./config/orbital";
 import { createRelativeState } from "./utils/physics";
@@ -11,6 +11,7 @@ import { useRelativeMotionControls } from "./hooks/useRelativeMotionControls";
 import { useManeuverControls } from "./hooks/useManeuverControls";
 import { useWaypointControls } from "./hooks/useWaypointControls";
 import { useManeuverQueue } from "./hooks/useManeuverQueue";
+import { useSimulationTime } from "./hooks/useSimulationTime";
 import { type ManeuverParams } from "./types/simulation";
 import { type Waypoint } from "./types/waypoint";
 import { calculateRendezvousBurn } from "./utils/maneuvers";
@@ -21,27 +22,33 @@ import { DeputySpacecraft } from "./components/DeputySpacecraft";
 import { RICAxes } from "./components/RICAxes";
 import { SimulationInfo } from "./components/SimulationInfo";
 import { Stats } from "./components/Stats";
-import {
-  TimeController,
-  type TimeControllerHandle,
-} from "./components/TimeController";
+import { TimeController } from "./components/TimeController";
 import { Trajectory } from "./components/Trajectory";
 import { WaypointManager } from "./components/WaypointManager";
 import { WaypointPreview } from "./components/WaypointPreview";
 
 function App() {
-  const [isPlaying, setIsPlaying] = useState(false);
   const [currentState, setCurrentState] = useState<RelativeState | null>(null);
-  const [elapsedTime, setElapsedTime] = useState(0);
   const [maneuverConfig, setManeuverConfig] = useState<ManeuverParams | null>(
     null
   );
   const [presetVersion, setPresetVersion] = useState(0);
   const [waypoints, setWaypoints] = useState<Waypoint[]>([]);
 
-  const timeControllerRef = useRef<TimeControllerHandle>(null);
   const orbitControlsRef = useRef<OrbitControlsImpl>(null);
   const currentStateRef = useRef<RelativeState | null>(null);
+
+  // Simulation time hook
+  const {
+    elapsedTime,
+    isPlaying,
+    currentTheta,
+    setIsPlaying,
+    toggle: togglePlaying,
+    advance: advanceTime,
+    reset: resetTime,
+    setElapsedTime,
+  } = useSimulationTime();
 
   // Maneuver queue hook
   const {
@@ -55,8 +62,8 @@ function App() {
   } = useManeuverQueue();
 
   const controls = useRelativeMotionControls(
-    () => timeControllerRef.current?.toggle(),
-    () => timeControllerRef.current?.reset(),
+    togglePlaying,
+    resetTime,
     () => {
       setManeuverConfig(null);
       cancelExecution(); // Clear waypoint queue on reset
@@ -79,12 +86,6 @@ function App() {
   const handleExecuteBurn = useCallback(
     ({ targetPosition, transferTime, fmc }: ManeuverParams) => {
       if (!currentState) return;
-
-      const currentTheta = trueAnomalyAtTime(
-        ORBITAL_PARAMS.elements,
-        0,
-        elapsedTime
-      );
 
       const deltaV = calculateRendezvousBurn(
         currentState,
@@ -112,7 +113,7 @@ function App() {
       setManeuverConfig({ targetPosition, transferTime, fmc });
       setIsPlaying(true);
     },
-    [currentState, elapsedTime, setControls]
+    [currentState, currentTheta, setControls, setIsPlaying]
   );
 
   const { setValues: setManeuverControls } =
@@ -180,7 +181,7 @@ function App() {
     setWaypoints([]); // Clear waypoints after execution
     setManeuverConfig(null); // Clear any single-point maneuver
     setIsPlaying(true);
-  }, [currentState, waypoints, waypointLegs.length, elapsedTime, setControls, startExecution]);
+  }, [currentState, waypoints, waypointLegs.length, elapsedTime, setControls, startExecution, setIsPlaying]);
 
   // Waypoint controls
   useWaypointControls({
@@ -198,35 +199,29 @@ function App() {
     currentStateRef.current = currentState;
   }, [currentState]);
 
-  // Handle time changes and leg transitions
-  const handleTimeChange = useCallback(
-    (newTime: number) => {
-      setElapsedTime(newTime);
+  // Check for leg transitions when time changes
+  useEffect(() => {
+    const state = currentStateRef.current;
+    if (!state) return;
 
-      // Check for leg transitions during queue execution
-      const state = currentStateRef.current;
-      if (!state) return;
+    const result = checkLegTransition(elapsedTime, state);
+    if (!result) return;
 
-      const result = checkLegTransition(newTime, state);
-      if (!result) return;
+    // Apply the state update from the transition
+    setControls({
+      radialOffset: result.newState.position[0],
+      inTrackOffset: result.newState.position[1],
+      crossTrackOffset: result.newState.position[2],
+      radialVelocity: result.newState.velocity[0],
+      inTrackVelocity: result.newState.velocity[1],
+      crossTrackVelocity: result.newState.velocity[2],
+    });
 
-      // Apply the state update from the transition
-      setControls({
-        radialOffset: result.newState.position[0],
-        inTrackOffset: result.newState.position[1],
-        crossTrackOffset: result.newState.position[2],
-        radialVelocity: result.newState.velocity[0],
-        inTrackVelocity: result.newState.velocity[1],
-        crossTrackVelocity: result.newState.velocity[2],
-      });
-
-      // Reset time for next leg if continuing
-      if (result.type === "continue") {
-        setElapsedTime(0);
-      }
-    },
-    [setControls, checkLegTransition]
-  );
+    // Reset time for next leg if continuing
+    if (result.type === "continue") {
+      setElapsedTime(0);
+    }
+  }, [elapsedTime, checkLegTransition, setControls, setElapsedTime]);
 
   // Disable OrbitControls while dragging waypoints
   const handleWaypointDragStart = useCallback(() => {
@@ -308,10 +303,6 @@ function App() {
     setCurrentState(state);
   };
 
-  const handlePlayingChange = (playing: boolean) => {
-    setIsPlaying(playing);
-  };
-
   return (
     <div style={{ width: "100vw", height: "100vh" }}>
       <Canvas camera={{ position: [10, 15, 100], fov: 40 }}>
@@ -330,12 +321,10 @@ function App() {
 
         <TimeController
           key={controllerKey}
-          ref={timeControllerRef}
+          isPlaying={isPlaying}
           acceleration={timeAcceleration}
           duration={simulationDuration}
-          isPlaying={isPlaying}
-          onPlayingChange={handlePlayingChange}
-          onTimeChange={handleTimeChange}
+          onAdvance={advanceTime}
         />
 
         <DeputySpacecraft
@@ -359,11 +348,7 @@ function App() {
             currentVelocity={currentState.velocity}
             waypoints={waypoints}
             legs={waypointLegs}
-            currentTheta={trueAnomalyAtTime(
-              ORBITAL_PARAMS.elements,
-              0,
-              elapsedTime
-            )}
+            currentTheta={currentTheta}
           />
         )}
 
